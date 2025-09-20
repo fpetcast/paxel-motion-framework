@@ -1,15 +1,15 @@
-import { IMotionParticle, PaxelParticle } from "../particle";
+import { Layer } from "../interfaces/layers";
+import { PaxelParticle } from "../particle";
 
 class GridController {
   private width: number;
   private height: number;
   private cellSize: number;
 
-  private _particles: IMotionParticle[] = [];
-  private lookupParticles: Map<string, number> = new Map();
+  private drawLayer: Layer;
 
   public get motionParticles() {
-    return this._particles;
+    return this.drawLayer.particles;
   }
 
   public get gridData() {
@@ -45,6 +45,14 @@ class GridController {
     this.cellSize = gridOptions.cellSize;
   }
 
+  setLayer(layer: Layer) {
+    this.drawLayer = layer;
+  }
+
+  getLayer() {
+    return this.drawLayer;
+  }
+
   setCell(e: PointerEvent, color: string) {
     const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
 
@@ -65,20 +73,20 @@ class GridController {
 
   destroyCell(e: PointerEvent) {
     const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
-    const lastIndex = this._particles.length - 1;
+    const lastIndex = this.drawLayer.particles.length - 1;
     const deleteIndex = cellIndex;
 
     if (deleteIndex > -1) {
-      this.lookupParticles.delete(this.posKey(row, column));
+      this.drawLayer.lookup.delete(this.posKey(row, column));
 
       // delete-swap for performances: last cell in the delete index, deleted cell pop from last index
       if (cellIndex !== lastIndex) {
-        const lastCell = this._particles[lastIndex];
-        this._particles[deleteIndex] = lastCell;
-        this.lookupParticles.set(this.posKey(Math.floor(lastCell.position.y / this.cellSize), Math.floor(lastCell.position.x / this.cellSize)), deleteIndex);
+        const lastCell = this.drawLayer.particles[lastIndex];
+        this.drawLayer.particles[deleteIndex] = lastCell;
+        this.drawLayer.lookup.set(this.posKey(Math.floor(lastCell.position.y / this.cellSize), Math.floor(lastCell.position.x / this.cellSize)), deleteIndex);
       }
 
-      this._particles.pop();
+      this.drawLayer.particles.pop();
       return true;
     }
 
@@ -96,8 +104,8 @@ class GridController {
       color: params?.color
     });
 
-    this._particles.push(particle);
-    this.lookupParticles.set(this.posKey(Math.floor(params.y / this.cellSize), Math.floor(params.x / this.cellSize)), this._particles.length - 1);
+    this.drawLayer.particles.push(particle);
+    this.drawLayer.lookup.set(this.posKey(Math.floor(params.y / this.cellSize), Math.floor(params.x / this.cellSize)), this.drawLayer.particles.length - 1);
 
     return particle;
   }
@@ -108,7 +116,7 @@ class GridController {
 
   getCellIndex(row: number, column: number) {
     const positionKey = this.posKey(row, column);
-    return this.lookupParticles.get(positionKey) ?? -1;
+    return this.drawLayer.lookup.get(positionKey) ?? -1;
   }
 
   getCellAtPosition(x: number, y: number): {
@@ -125,7 +133,7 @@ class GridController {
       row,
       column,
       cellIndex,
-      cell: cellIndex > 0 ? this._particles[cellIndex] : undefined
+      cell: cellIndex > 0 ? this.drawLayer.particles[cellIndex] : undefined
     }
   }
 
@@ -134,7 +142,7 @@ class GridController {
   }
   ) {
     const cellIndex = this.getCellIndex(row, col);
-    const cell = this._particles[cellIndex];
+    const cell = this.drawLayer.particles[cellIndex];
 
     if (!cell) {
       console.error("Cannot find cell at pos: row - col ", row, col);

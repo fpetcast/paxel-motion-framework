@@ -8,8 +8,11 @@ export interface PaxelRendererConfig {
     rows: number,
     columns: number,
     cellSize: number,
-    showHelper: boolean
+    showHelper?: boolean
   }
+  layers: {
+    default?: string
+  },
   init: boolean
 }
 

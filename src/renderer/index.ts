@@ -9,6 +9,7 @@ import { CollisionSystem } from "../systems/collision-system";
 import { ForceSystem } from "../systems/force-system";
 import { PaxelRendererConfig } from "../interfaces/renderer";
 import { MotionVector2 } from "../interfaces";
+import { LayersController } from "../controllers/layers-controller";
 
 const MOTION_RENDERER_MODES = [
   "static",
@@ -31,6 +32,7 @@ class PaxelRenderer {
   */
   private gridController: GridController;
   private gridHelper: GridHelper;
+  private layersController: LayersController;
 
   /**
    * WEBGL
@@ -59,8 +61,10 @@ class PaxelRenderer {
   private isPressing: boolean = false;
 
   private mode: PaxelRendererMode = "static";
+
+  private _selectedColor = "#000000"
   private get selectedColor() {
-    return "#000000";
+    return this._selectedColor;
   }
 
   public get gl() {
@@ -81,6 +85,9 @@ class PaxelRenderer {
         columns: 32,
         cellSize: 20,
         showHelper: true
+      },
+      layers: {
+        default: "layer-1"
       },
       init: true,
     }
@@ -120,7 +127,14 @@ class PaxelRenderer {
 
       this.initBuffers();
 
+      this.layersController = new LayersController();
       this.gridController = new GridController(this.gl, this.renderPixelProgram);
+
+      const defaultLayer = this.config.layers.default;
+
+      if (defaultLayer) {
+        this.addLayer(this.config.layers.default);
+      }
 
       if (this.config.grid.showHelper) {
         this.gridHelper = new GridHelper(this.canvas, this.config);
@@ -162,17 +176,64 @@ class PaxelRenderer {
     this.activeTool = activeTool;
   }
 
+  addLayer(name?: string) {
+    let layerName = name ?? ""
+
+    if (!layerName) {
+      layerName = `layer-${this.layersController.getAll().length + 1}`;
+    }
+
+    this.layersController.create(layerName);
+
+    if (this.gridController.getLayer() === undefined) {
+      const layer = this.layersController.getByIndex(0);
+      this.gridController.setLayer(layer);
+    }
+  }
+
+  removeLayer(name: string) {
+    return this.layersController.drop(name);
+  }
+
+  switchLayer(name: string) {
+    const layer = this.layersController.getByName(name);
+
+    if (layer) {
+      this.gridController.setLayer(layer);
+    }
+  }
+
+  getActiveDrawLayer() {
+    return this.gridController.getLayer()?.name;
+  }
+
+  getLayers() {
+    return this.layersController.getNames();
+  }
+
+  changeLayerOrder(name: string, index: number) {
+    this.layersController.changeOrder(name, index);
+  }
+
+  setDrawColor(color: string) {
+    this._selectedColor = color;
+  }
+
   start() {
+    this.setMode('motion');
     this.stepAccumulator = 0;
     this.loopFrameId = requestAnimationFrame(this.render.bind(this));
   }
 
   reset() {
-    this.gridController.motionParticles.forEach(particle => {
+    this.layersController.getParticles().forEach(particle => {
       particle.restoreOriginalPosition();
       particle.setFreeze(false);
     });
-    this.render(performance.now(), true);
+
+    if (this.mode === "static") {
+      this.render(performance.now(), true);
+    }
   }
 
   stop() {
@@ -180,6 +241,7 @@ class PaxelRenderer {
       return;
     }
 
+    this.setMode('static');
     cancelAnimationFrame(this.loopFrameId);
     this.loopFrameId = null;
   }
@@ -242,50 +304,55 @@ class PaxelRenderer {
     if (this.mode === "motion") {
       // fixed step => motion simulation update
       if (this.stepAccumulator >= this.step) {
-        for (const particle of this.gridController.motionParticles) {
-          if (particle.isFreezed) {
-            continue;
-          }
+        const layers = this.layersController.getAll();
+        for (const layer of layers) {
+          const { particles } = layer;
 
-          let updatePos = this.forceSystem.applyForces(deltaTime, particle);
+          for (const particle of particles) {
+            if (particle.isFreezed) {
+              continue;
+            }
 
-          let isColliding = false;
+            let updatePos = this.forceSystem.applyForces(deltaTime, particle);
 
-          if (
-            this.collisionSystem.isOutOfBounds({
-              position: updatePos,
-              size: particle.size
-            }, this.canvas)
-          ) {
-            particle.setFreeze(true);
-            continue;
-          }
+            let isColliding = false;
 
-          //TODO: should optimize collision by area??
-          if (!isColliding) {
-            for (const collider of this.gridController.motionParticles) {
-              if (particle.id === collider.id || !collider.isFreezed) {
-                continue;
-              }
+            if (
+              this.collisionSystem.isOutOfBounds({
+                position: updatePos,
+                size: particle.size
+              }, this.canvas)
+            ) {
+              particle.setFreeze(true);
+              continue;
+            }
 
-              if (
-                this.collisionSystem.isColliding(
-                  { position: updatePos, size: particle.size },
-                  { position: collider.position, size: collider.size }
-                )
-              ) {
-                particle.setFreeze(true);
-                isColliding = true;
-                break;
+            //TODO: should optimize collision by area??
+            if (!isColliding) {
+              for (const collider of this.layersController.getParticles()) {
+                if (particle.id === collider.id || !collider.isFreezed) {
+                  continue;
+                }
+
+                if (
+                  this.collisionSystem.isColliding(
+                    { position: updatePos, size: particle.size },
+                    { position: collider.position, size: collider.size }
+                  )
+                ) {
+                  particle.setFreeze(true);
+                  isColliding = true;
+                  break;
+                }
               }
             }
-          }
 
-          if (isColliding) {
-            continue;
-          }
+            if (isColliding) {
+              continue;
+            }
 
-          particle.setPosition(updatePos.x, updatePos.y);
+            particle.setPosition(updatePos.x, updatePos.y);
+          }
 
         }
 
@@ -364,7 +431,7 @@ class PaxelRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     // typed arrays for gpu
-    const cells = this.gridController.motionParticles;
+    const cells = this.layersController.getParticles();
     const posData = new Float32Array(cells.length * 2);
     //TODO: OPTIMZE TO UNSIGNED BYTES STRUCTURE
     const colData = new Float32Array(cells.length * (4 * 4));
