@@ -16,8 +16,8 @@
     "dev": "tsdown --watch"
   },
   "devDependencies": {
-    "tsdown": "^0.14.2",
-    "typescript": "^5.9.2"
+    "tsdown": "0.14.2",
+    "typescript": "5.9.2"
   },
   "author": "Francesco Pettrone",
   "license": "MIT",
