@@ -79,6 +79,24 @@ class LayersController {
     return this.layers;
   }
 
+  clearAll() {
+    this.getAll().forEach((layer) => {
+      layer.lookup.clear();
+      layer.particles = [];
+    })
+  }
+
+  clear(name: string) {
+    const layer = this.getByName(name);
+
+    if (layer) {
+      layer.lookup.clear();
+      layer.particles = [];
+    } else {
+      console.error('Cannot clear layer: ', name);
+    }
+  }
+
   setActive(name: string) {
     this.active = name;
   }

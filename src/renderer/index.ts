@@ -211,12 +211,30 @@ class PaxelRenderer {
     return this.layersController.getNames();
   }
 
+  clearLayer(name: string) {
+    if (this.mode === "motion") {
+      return;
+    }
+
+    this.layersController.clear(name);
+    this.render(performance.now(), true);
+  }
+
   changeLayerOrder(name: string, index: number) {
     this.layersController.changeOrder(name, index);
   }
 
   setDrawColor(color: string) {
     this._selectedColor = color;
+  }
+
+  clearAllLayers() {
+    if (this.mode === "motion") {
+      return;
+    }
+
+    this.layersController.clearAll();
+    this.render(performance.now(), true);
   }
 
   start() {
