@@ -53,8 +53,8 @@ class GridController {
     return this.drawLayer;
   }
 
-  setCell(e: PointerEvent, color: string) {
-    const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
+  setCell(clientX: number, clinetY: number, color: string) {
+    const { row, column, cellIndex } = this.getCellAtPosition(clientX, clinetY);
 
     if (cellIndex < 0) {
       this.addCell({
@@ -71,8 +71,8 @@ class GridController {
     });
   }
 
-  destroyCell(e: PointerEvent) {
-    const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
+  destroyCell(clientX: number, clientY: number) {
+    const { row, column, cellIndex } = this.getCellAtPosition(clientX, clientY);
     const lastIndex = this.drawLayer.particles.length - 1;
     const deleteIndex = cellIndex;
 

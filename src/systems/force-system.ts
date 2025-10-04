@@ -14,7 +14,7 @@ class ForceSystem extends MotionSystemAbstract {
     this._forces.clear();
   }
 
-  addForce(name: string, force: MotionVector2) {
+  upsertForce(name: string, force: MotionVector2) {
     this._forces.set(name, force);
   }
 

@@ -2,22 +2,16 @@ import { createGraphicProgram, createOrthoMatrix, resizeCanvasToDisplaySize } fr
 import { GridController } from "../controllers/grid-controller";
 import { shaders } from "../shaders/instanced-pixels";
 import { LoopSystem } from "../systems/loop-system";
-import { IToolsKey } from "../interfaces/tools";
-import { Tools } from "../tools/tools";
-import { GridHelper } from "../helpers/grid-helper";
 import { CollisionSystem } from "../systems/collision-system";
 import { ForceSystem } from "../systems/force-system";
-import { PaxelRendererConfig } from "../interfaces/renderer";
+import { PaxelRendererConfig, PaxelRendererMode } from "../interfaces/renderer";
 import { MotionVector2 } from "../interfaces";
 import { LayersController } from "../controllers/layers-controller";
 
-const MOTION_RENDERER_MODES = [
-  "static",
-  "motion"
-] as const;
-export type PaxelRendererMode = typeof MOTION_RENDERER_MODES[number];
 
 class PaxelRenderer {
+  private inited: boolean = false;
+
   /**
    * ANIMATION
    */
@@ -31,7 +25,6 @@ class PaxelRenderer {
    * GRID
   */
   private gridController: GridController;
-  private gridHelper: GridHelper;
   private layersController: LayersController;
 
   /**
@@ -51,14 +44,6 @@ class PaxelRenderer {
   private loopSystem = LoopSystem.instance;
   private forceSystem = ForceSystem.instance;
   private collisionSystem = CollisionSystem.instance;
-
-  /**
-   * TOOLS
-  */
-  private tools: Tools;
-  private activeTool: IToolsKey = "pencil";
-
-  private isPressing: boolean = false;
 
   private mode: PaxelRendererMode = "static";
 
@@ -84,7 +69,6 @@ class PaxelRenderer {
         rows: 32,
         columns: 32,
         cellSize: 20,
-        showHelper: true
       },
       layers: {
         default: "layer-1"
@@ -98,6 +82,11 @@ class PaxelRenderer {
   }
 
   init() {
+    if (this.inited) {
+      console.warn('Paxel Renderer yet inited!');
+      return;
+    }
+
     this.canvas.style.width = `${this.config.canvas.width}px`;
     this.canvas.style.height = `${this.config.canvas.height}px`;
 
@@ -136,15 +125,40 @@ class PaxelRenderer {
         this.addLayer(this.config.layers.default);
       }
 
-      if (this.config.grid.showHelper) {
-        this.gridHelper = new GridHelper(this.canvas, this.config);
-        document.body.appendChild(this.gridHelper);
-      }
-
-      this.tools = new Tools(this.gridController);
-
-      this.initListeners();
+      this.inited = true;
     }
+  }
+
+  drawAt(
+    x: number,
+    y: number,
+    color?: string
+  ) {
+    const drawColor = color ?? this._selectedColor;
+    this.gridController.setCell(x, y, drawColor);
+    this.render(performance.now(), true);
+  }
+
+  removeAt(
+    x: number,
+    y: number
+  ) {
+    this.gridController.destroyCell(x, y);
+    this.render(performance.now(), true);
+  }
+
+  putPixel(
+    row: number,
+    col: number
+  ) {
+    throw new Error("Put Pixel Not Implemented!");
+  }
+
+  removePixel(
+    row: number,
+    col: number
+  ) {
+    throw new Error("Remove Pixel Not Implemented!");
   }
 
   /**
@@ -153,7 +167,11 @@ class PaxelRenderer {
    * @param force vector representing x and y units on grid per step
    */
   addForce(name: string, force: MotionVector2) {
-    this.forceSystem.addForce(name, force);
+    this.forceSystem.upsertForce(name, force);
+  }
+
+  updateForce(name: string, force: MotionVector2) {
+    this.forceSystem.upsertForce(name, force);
   }
 
   removeForce(name: string) {
@@ -166,14 +184,6 @@ class PaxelRenderer {
 
   setMode(mode: PaxelRendererMode) {
     this.mode = mode;
-  }
-
-  getActiveTool() {
-    return this.activeTool;
-  }
-
-  setActiveTool(activeTool: IToolsKey) {
-    this.activeTool = activeTool;
   }
 
   addLayer(name?: string) {
@@ -264,51 +274,6 @@ class PaxelRenderer {
     this.loopFrameId = null;
   }
 
-  private initListeners() {
-    this.canvas.addEventListener("pointerdown", this.onStartPressing.bind(this));
-    this.canvas.addEventListener("pointermove", this.onPressing.bind(this));
-    this.canvas.addEventListener("pointerup", this.onStopPressing.bind(this));
-    this.canvas.addEventListener("pointerleave", this.onStopPressing.bind(this));
-  }
-
-  private onStartPressing(e: PointerEvent) {
-    this.isPressing = true;
-    this.onPressing(e);
-  }
-
-  private onPressing(e: PointerEvent) {
-    if (!this.isPressing) {
-      return;
-    }
-
-    if (this.mode === "static") {
-      this.applyActiveTool(e);
-      this.render(performance.now(), true);
-    }
-  }
-
-  private applyActiveTool(e: PointerEvent) {
-    switch (this.activeTool) {
-      case "eraser":
-        this.tools.invoke(this.activeTool,
-          {
-            e
-          })
-        break;
-      case "pencil": default:
-        this.tools.invoke(this.activeTool,
-          {
-            e,
-            selectedColor: this.selectedColor
-          })
-        break;
-    }
-  }
-
-  private onStopPressing() {
-    this.isPressing = false;
-  }
-
   private render(now: number, isSingleTick: boolean = false) {
     const deltaTime = now - this.lastFrameTime;
     this.lastFrameTime = now;
@@ -396,14 +361,14 @@ class PaxelRenderer {
     this.resizeWebGlCanvas();
   }
 
-  resizeWebGlCanvas() {
+  private resizeWebGlCanvas() {
     resizeCanvasToDisplaySize(this.gl.canvas as HTMLCanvasElement);
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
   }
 
   //INSTANCED RENDERING METHODS
   // Matrix Transform [0..W]×[0..H] → NDC [-1..1]
-  getOrtographicMatrix() {
+  private getOrtographicMatrix() {
     const { cellSize, rows } = this.config.grid;
     const gridSize = cellSize * rows;
     return createOrthoMatrix(

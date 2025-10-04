@@ -8,7 +8,6 @@ export interface PaxelRendererConfig {
     rows: number,
     columns: number,
     cellSize: number,
-    showHelper?: boolean
   }
   layers: {
     default?: string
@@ -21,3 +20,9 @@ export interface ProgramAttribute {
   name: string,
   buffer: WebGLBuffer
 }
+
+export const MOTION_RENDERER_MODES = [
+  "static",
+  "motion"
+] as const;
+export type PaxelRendererMode = typeof MOTION_RENDERER_MODES[number];
