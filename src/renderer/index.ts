@@ -54,7 +54,7 @@ class PaxelRenderer {
 
   public get gl() {
     return this.canvas.getContext("webgl2",
-      { alpha: true }
+      { alpha: true, preserveDrawingBuffer: this.config.canExport }
     ) as WebGL2RenderingContext
   }
 
@@ -68,12 +68,12 @@ class PaxelRenderer {
       grid: {
         rows: 32,
         columns: 32,
-        cellSize: 20,
       },
       layers: {
         default: "layer-1"
       },
       init: true,
+      canExport: true,
     }
   ) {
     if (this.config.init) {
@@ -87,12 +87,15 @@ class PaxelRenderer {
       return;
     }
 
-    this.canvas.style.width = `${this.config.canvas.width}px`;
-    this.canvas.style.height = `${this.config.canvas.height}px`;
+    const canvasWidth = this.config.canvas?.width ?? this.canvas.offsetWidth;
+    const canvasHeight = this.config.canvas?.height ?? this.canvas.offsetHeight;
+
+    this.canvas.style.width = `${canvasWidth}px`;
+    this.canvas.style.height = `${canvasHeight}px`;
 
     const dpr = window.devicePixelRatio || 1;
-    const cssW = this.config.canvas.width;
-    const cssH = this.config.canvas.height;
+    const cssW = canvasWidth;
+    const cssH = canvasHeight;
     this.canvas.width = cssW * dpr;
     this.canvas.height = cssH * dpr;
 
@@ -117,13 +120,14 @@ class PaxelRenderer {
       this.initBuffers();
 
       this.layersController = new LayersController();
-      this.gridController = new GridController(this.gl, this.renderPixelProgram);
+      this.gridController = new GridController(this.gl, this.renderPixelProgram, {
+        width: this.config.grid.rows,
+        height: this.config.grid.columns,
+        cellSize: this.getCellSize(),
+      });
 
-      const defaultLayer = this.config.layers.default;
-
-      if (defaultLayer) {
-        this.addLayer(this.config.layers.default);
-      }
+      const defaultLayer = this.config.layers?.default ?? "layer-1";
+      this.addLayer(defaultLayer);
 
       this.inited = true;
     }
@@ -366,10 +370,26 @@ class PaxelRenderer {
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
   }
 
+  private getCanvasSize() {
+    const canvasWidth = this.config.canvas?.width ?? this.canvas.offsetWidth;
+    const canvasHeight = this.config.canvas?.height ?? this.canvas.offsetHeight;
+
+    return {
+      width: canvasWidth,
+      height: canvasHeight
+    }
+  }
+
+  private getCellSize() {
+    const { width } = this.getCanvasSize();
+    return Math.floor(width / this.config.grid.rows);
+  }
+
   //INSTANCED RENDERING METHODS
   // Matrix Transform [0..W]×[0..H] → NDC [-1..1]
   private getOrtographicMatrix() {
-    const { cellSize, rows } = this.config.grid;
+    const { rows } = this.config.grid;
+    const cellSize = this.getCellSize();
     const gridSize = cellSize * rows;
     return createOrthoMatrix(
       0, gridSize, gridSize, 0
@@ -441,7 +461,8 @@ class PaxelRenderer {
 
     gl.useProgram(this.renderPixelProgram);
     // set uniforms
-    gl.uniform1f(this.uCellSize, this.config.grid.cellSize);
+    const cellSize = this.getCellSize();
+    gl.uniform1f(this.uCellSize, cellSize);
     const orthoMatrix = this.getOrtographicMatrix();
     this.gl.uniformMatrix4fv(this.uProjectionMatrix, false, orthoMatrix);
 

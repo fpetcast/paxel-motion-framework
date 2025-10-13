@@ -1,18 +1,18 @@
 
 export interface PaxelRendererConfig {
-  canvas: {
-    width: number,
-    height: number
-  },
+  init: boolean,
+  canExport: boolean,
   grid: {
     rows: number,
     columns: number,
-    cellSize: number,
   }
-  layers: {
+  canvas?: {
+    width: number,
+    height: number
+  },
+  layers?: {
     default?: string
   },
-  init: boolean
 }
 
 export interface ProgramAttribute {
