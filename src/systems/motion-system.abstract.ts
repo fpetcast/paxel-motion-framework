@@ -1,29 +1,29 @@
+import { Layer } from "../interfaces/layers";
 import { MotionSystem } from "../interfaces/systems";
-import { PaxelParticle } from "../particle"
 
 abstract class MotionSystemAbstract implements MotionSystem {
-  protected registry: Map<string, PaxelParticle> = new Map();
+  registry: Map<string, Layer> = new Map();
 
   abstract init(): void
   abstract update(time: number): void
 
   constructor() { }
 
-  register(particle: PaxelParticle) {
-    if (this.isRegistered(particle)) {
+  register(layer: Layer) {
+    if (this.isRegistered(layer)) {
       console.log('is registered yet');
       return;
     }
 
-    this.registry.set(particle.id, particle);
+    this.registry.set(layer.name, layer);
   };
 
-  isRegistered(particle: PaxelParticle): boolean {
-    return this.registry.get(particle.id) !== undefined;
+  isRegistered(layer: Layer): boolean {
+    return this.registry.get(layer.name) !== undefined;
   };
 
-  unregister(particle: PaxelParticle): boolean {
-    return this.registry.delete(particle.id);
+  unregister(layer: Layer): boolean {
+    return this.registry.delete(layer.name);
   }
 }
 

@@ -182,6 +182,36 @@ class PaxelRenderer {
     this.forceSystem.removeForce(name);
   }
 
+  applyForce(layerName: string, apply: boolean) {
+    const layer = this.layersController.getByName(layerName);
+
+    if (!layer) {
+      console.error('Cannot apply physics to layer: ', layerName);
+      return;
+    }
+
+    if (apply) {
+      this.forceSystem.register(layer);
+    } else {
+      this.forceSystem.unregister(layer);
+    }
+  }
+
+  applyLoop(layerName: string, apply: boolean) {
+    const layer = this.layersController.getByName(layerName);
+
+    if (!layer) {
+      console.error('Cannot apply loop to layer: ', layerName);
+      return;
+    }
+
+    if (apply) {
+      this.loopSystem.register(layer);
+    } else {
+      this.loopSystem.unregister(layer);
+    }
+  }
+
   getMode() {
     return this.mode;
   }
@@ -226,12 +256,10 @@ class PaxelRenderer {
   }
 
   clearLayer(name: string) {
-    if (this.mode === "motion") {
-      return;
-    }
-
     this.layersController.clear(name);
-    this.render(performance.now(), true);
+    if (this.mode !== "motion") {
+      this.render(performance.now(), true);
+    }
   }
 
   changeLayerOrder(name: string, index: number) {
@@ -243,21 +271,22 @@ class PaxelRenderer {
   }
 
   clearAllLayers() {
-    if (this.mode === "motion") {
-      return;
-    }
-
     this.layersController.clearAll();
-    this.render(performance.now(), true);
+
+    if (this.mode !== "motion") {
+      this.render(performance.now(), true);
+    }
   }
 
   start() {
     this.setMode('motion');
     this.stepAccumulator = 0;
+    this.loopSystem.init();
     this.loopFrameId = requestAnimationFrame(this.render.bind(this));
   }
 
   reset() {
+    this.loopSystem.reset();
     this.layersController.getParticles().forEach(particle => {
       particle.restoreOriginalPosition();
       particle.setFreeze(false);
@@ -281,7 +310,6 @@ class PaxelRenderer {
   private render(now: number, isSingleTick: boolean = false) {
     const deltaTime = now - this.lastFrameTime;
     this.lastFrameTime = now;
-    const elapsedSeconds = deltaTime / 1000;
 
     const maxFrame = 200; // max ms per frame
     const ft = Math.min(deltaTime, maxFrame);
@@ -293,7 +321,13 @@ class PaxelRenderer {
       if (this.stepAccumulator >= this.step) {
         const layers = this.layersController.getAll();
         for (const layer of layers) {
+          const enabledForce = this.forceSystem.isRegistered(layer);
+          if (!enabledForce) {
+            continue;
+          }
+
           const { particles } = layer;
+          this.loopSystem.update(this.stepAccumulator);
 
           for (const particle of particles) {
             if (particle.isFreezed) {
@@ -302,40 +336,42 @@ class PaxelRenderer {
 
             let updatePos = this.forceSystem.applyForces(deltaTime, particle);
 
-            let isColliding = false;
+            //TODO: should optimize and revise collision system rules
+            if (this.collisionSystem.isRegistered(layer)) {
+              let isColliding = false;
 
-            if (
-              this.collisionSystem.isOutOfBounds({
-                position: updatePos,
-                size: particle.size
-              }, this.canvas)
-            ) {
-              particle.setFreeze(true);
-              continue;
-            }
+              if (
+                this.collisionSystem.isOutOfBounds({
+                  position: updatePos,
+                  size: particle.size
+                }, this.canvas)
+              ) {
+                particle.setFreeze(true);
+                continue;
+              }
 
-            //TODO: should optimize collision by area??
-            if (!isColliding) {
-              for (const collider of this.layersController.getParticles()) {
-                if (particle.id === collider.id || !collider.isFreezed) {
-                  continue;
-                }
+              if (!isColliding) {
+                for (const collider of this.layersController.getParticles()) {
+                  if (particle.id === collider.id || !collider.isFreezed) {
+                    continue;
+                  }
 
-                if (
-                  this.collisionSystem.isColliding(
-                    { position: updatePos, size: particle.size },
-                    { position: collider.position, size: collider.size }
-                  )
-                ) {
-                  particle.setFreeze(true);
-                  isColliding = true;
-                  break;
+                  if (
+                    this.collisionSystem.isColliding(
+                      { position: updatePos, size: particle.size },
+                      { position: collider.position, size: collider.size }
+                    )
+                  ) {
+                    particle.setFreeze(true);
+                    isColliding = true;
+                    break;
+                  }
                 }
               }
-            }
 
-            if (isColliding) {
-              continue;
+              if (isColliding) {
+                continue;
+              }
             }
 
             particle.setPosition(updatePos.x, updatePos.y);
