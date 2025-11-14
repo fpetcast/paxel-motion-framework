@@ -6,19 +6,14 @@ export interface PaxelRendererConfig {
     rows: number,
     columns: number,
   }
-  canvas?: {
+  canvas: {
     width: number,
     height: number
   },
   layers?: {
     default?: string
   },
-}
-
-export interface ProgramAttribute {
-  location: number,
-  name: string,
-  buffer: WebGLBuffer
+  defaultColor?: string;
 }
 
 export const MOTION_RENDERER_MODES = [

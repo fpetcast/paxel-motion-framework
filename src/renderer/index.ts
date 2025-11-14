@@ -1,12 +1,12 @@
-import { createGraphicProgram, createOrthoMatrix, resizeCanvasToDisplaySize } from "../utils/webgl";
 import { GridController } from "../controllers/grid-controller";
-import { shaders } from "../shaders/instanced-pixels";
 import { LoopSystem } from "../systems/loop-system";
 import { CollisionSystem } from "../systems/collision-system";
 import { ForceSystem } from "../systems/force-system";
-import { PaxelRendererConfig, PaxelRendererMode } from "../interfaces/renderer";
-import { MotionVector2 } from "../interfaces";
+import { type PaxelRendererConfig, type PaxelRendererMode } from "../interfaces/renderer";
+import { type MotionVector2 } from "../interfaces/particle";
 import { LayersController } from "../controllers/layers-controller";
+import { GraphicsApi } from "../interfaces/graphics-api";
+import { WebGlCanvasApi } from "./graphics-api/webgl-canvas";
 
 
 class PaxelRenderer {
@@ -22,21 +22,15 @@ class PaxelRenderer {
   private loopFrameId: number | null;
 
   /**
-   * GRID
+   * CONTROLLERS
   */
   private gridController: GridController;
   private layersController: LayersController;
 
   /**
-   * WEBGL
+   * GRAPHICS API
   */
-  private renderPixelProgram: WebGLProgram | null;
-  private vao: WebGLVertexArrayObject;
-  private quadVBO: WebGLBuffer;
-  private posVBO: WebGLBuffer;
-  private colVBO: WebGLBuffer;
-  private uCellSize: WebGLUniformLocation;
-  private uProjectionMatrix: WebGLUniformLocation;
+  private graphicsApi: GraphicsApi;
 
   /**
    * SYSTEMS
@@ -47,16 +41,7 @@ class PaxelRenderer {
 
   private mode: PaxelRendererMode = "static";
 
-  private _selectedColor = "#000000"
-  private get selectedColor() {
-    return this._selectedColor;
-  }
-
-  public get gl() {
-    return this.canvas.getContext("webgl2",
-      { alpha: true, preserveDrawingBuffer: this.config.canExport }
-    ) as WebGL2RenderingContext
-  }
+  private defaultDrawColor = "#000000"
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -81,6 +66,8 @@ class PaxelRenderer {
     }
   }
 
+  //#region PUBLIC API 
+  //#region INIT
   init() {
     if (this.inited) {
       console.warn('Paxel Renderer yet inited!');
@@ -99,28 +86,14 @@ class PaxelRenderer {
     this.canvas.width = cssW * dpr;
     this.canvas.height = cssH * dpr;
 
-    this.initWebGlContext();
+    this.graphicsApi = new WebGlCanvasApi(
+      this.canvas,
+      this.config
+    );
 
-    const { fragment, vertex } = shaders();
-    this.renderPixelProgram = createGraphicProgram(this.gl, {
-      vertex,
-      fragment
-    })
-
-
-    if (this.renderPixelProgram) {
-      this.vao = this.gl.createVertexArray()!;
-      this.quadVBO = this.gl.createBuffer()!;
-      this.posVBO = this.gl.createBuffer()!;
-      this.colVBO = this.gl.createBuffer()!;
-
-      this.uCellSize = this.gl.getUniformLocation(this.renderPixelProgram, "u_size")!;
-      this.uProjectionMatrix = this.gl.getUniformLocation(this.renderPixelProgram, "u_projection")!;
-
-      this.initBuffers();
-
+    if (this.graphicsApi.inited) {
       this.layersController = new LayersController();
-      this.gridController = new GridController(this.gl, this.renderPixelProgram, {
+      this.gridController = new GridController({
         width: this.config.grid.rows,
         height: this.config.grid.columns,
         cellSize: this.getCellSize(),
@@ -129,16 +102,40 @@ class PaxelRenderer {
       const defaultLayer = this.config.layers?.default ?? "layer-1";
       this.addLayer(defaultLayer);
 
+      if (this.config?.defaultColor) {
+        this.defaultDrawColor = this.config.defaultColor;
+      }
+
       this.inited = true;
     }
   }
+  //#endregion
 
+
+  //#region CANVAS
+  resize() {
+    this.graphicsApi.resize();
+    if (this.inited) {
+      this.render(performance.now());
+    }
+  }
+  //#endregion
+
+
+  //#region CONFIG
+  updateConfig(config: PaxelRendererConfig) {
+    //TODO;
+  }
+  //#endregion
+
+
+  //#region DRAW
   drawAt(
     x: number,
     y: number,
-    color?: string
+    color: string
   ) {
-    const drawColor = color ?? this._selectedColor;
+    const drawColor = color ?? this.defaultDrawColor;
     this.gridController.setCell(x, y, drawColor);
     this.render(performance.now(), true);
   }
@@ -164,7 +161,10 @@ class PaxelRenderer {
   ) {
     throw new Error("Remove Pixel Not Implemented!");
   }
+  //#endregion
 
+
+  //#region PHYSICS 
   /**
    * Add force to the motion mode simulation
    * @param name force name
@@ -211,15 +211,10 @@ class PaxelRenderer {
       this.loopSystem.unregister(layer);
     }
   }
+  //#endregion
 
-  getMode() {
-    return this.mode;
-  }
 
-  setMode(mode: PaxelRendererMode) {
-    this.mode = mode;
-  }
-
+  //#region LAYERS
   addLayer(name?: string) {
     let layerName = name ?? ""
 
@@ -266,16 +261,23 @@ class PaxelRenderer {
     this.layersController.changeOrder(name, index);
   }
 
-  setDrawColor(color: string) {
-    this._selectedColor = color;
-  }
-
   clearAllLayers() {
     this.layersController.clearAll();
 
     if (this.mode !== "motion") {
       this.render(performance.now(), true);
     }
+  }
+  //#endregion
+  //#endregion
+
+  //#region MOTION
+  getMode() {
+    return this.mode;
+  }
+
+  setMode(mode: PaxelRendererMode) {
+    this.mode = mode;
   }
 
   start() {
@@ -306,7 +308,10 @@ class PaxelRenderer {
     cancelAnimationFrame(this.loopFrameId);
     this.loopFrameId = null;
   }
+  //#endregion
+  //#endregion
 
+  //#region MAIN LOOP
   private render(now: number, isSingleTick: boolean = false) {
     const deltaTime = now - this.lastFrameTime;
     this.lastFrameTime = now;
@@ -383,130 +388,22 @@ class PaxelRenderer {
       }
     }
 
-    this.draw();
+    this.graphicsApi.draw(
+      this.layersController.getParticles()
+    );
 
     if (!isSingleTick) {
       requestAnimationFrame(this.render.bind(this));
     }
   }
+  //#endregion
 
-  private initWebGlContext() {
-    if (!this.gl) {
-      console.error('Cannot initialize webgl context');
-    }
 
-    this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-
-    this.resizeWebGlCanvas();
-  }
-
-  private resizeWebGlCanvas() {
-    resizeCanvasToDisplaySize(this.gl.canvas as HTMLCanvasElement);
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-  }
-
-  private getCanvasSize() {
-    const canvasWidth = this.config.canvas?.width ?? this.canvas.offsetWidth;
-    const canvasHeight = this.config.canvas?.height ?? this.canvas.offsetHeight;
-
-    return {
-      width: canvasWidth,
-      height: canvasHeight
-    }
-  }
-
+  //#region UTILS
   private getCellSize() {
-    const { width } = this.getCanvasSize();
-    return Math.floor(width / this.config.grid.rows);
+    return Math.floor(this.canvas.width / this.config.grid.rows);
   }
-
-  //INSTANCED RENDERING METHODS
-  // Matrix Transform [0..W]×[0..H] → NDC [-1..1]
-  private getOrtographicMatrix() {
-    const { rows } = this.config.grid;
-    const cellSize = this.getCellSize();
-    const gridSize = cellSize * rows;
-    return createOrthoMatrix(
-      0, gridSize, gridSize, 0
-    )
-  }
-
-  private initBuffers() {
-    const gl = this.gl;
-    gl.bindVertexArray(this.vao);
-
-    // Quad base (2D unit square)
-    const quadVerts = new Float32Array([
-      0, 0, 1, 0, 0, 1,
-      1, 0, 1, 1, 0, 1
-    ]);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.quadVBO);
-    gl.bufferData(gl.ARRAY_BUFFER, quadVerts, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-
-    // Buffer offsets (per istanza)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.posVBO);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(1, 1);
-
-    // Buffer colors (per instance)
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.colVBO);
-    gl.enableVertexAttribArray(2);
-    gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 0, 0);
-    gl.vertexAttribDivisor(2, 1);
-
-    gl.bindVertexArray(null);
-  }
-
-  private draw() {
-    const gl = this.gl;
-
-    // Setup viewport e clear
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-
-    // typed arrays for gpu
-    const cells = this.layersController.getParticles();
-    const posData = new Float32Array(cells.length * 2);
-    //TODO: OPTIMZE TO UNSIGNED BYTES STRUCTURE
-    const colData = new Float32Array(cells.length * (4 * 4));
-
-    for (let i = 0; i < cells.length; i++) {
-      const cell = cells[i];
-
-      posData[i * 2] = cell.position.x;
-      posData[i * 2 + 1] = cell.position.y
-
-      const color = cell.getParsedColor();
-      colData[i * 4] = color[0];
-      colData[i * 4 + 1] = color[1];
-      colData[i * 4 + 2] = color[2];
-      colData[i * 4 + 3] = color[3];
-    }
-
-    // Aggiorna buffer GPU
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.posVBO);
-    gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.colVBO);
-    gl.bufferData(gl.ARRAY_BUFFER, colData, gl.DYNAMIC_DRAW);
-
-    gl.useProgram(this.renderPixelProgram);
-    // set uniforms
-    const cellSize = this.getCellSize();
-    gl.uniform1f(this.uCellSize, cellSize);
-    const orthoMatrix = this.getOrtographicMatrix();
-    this.gl.uniformMatrix4fv(this.uProjectionMatrix, false, orthoMatrix);
-
-    // draw all instances
-    gl.bindVertexArray(this.vao);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, cells.length);
-    gl.bindVertexArray(null);
-  }
+  //#endregion
 }
 
 export { PaxelRenderer }

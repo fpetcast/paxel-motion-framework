@@ -115,11 +115,12 @@ const loadShader = (
   // See if it compiled successfully
 
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    alert(
-      `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`,
+    const errorMsg = `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`;
+    console.error(
+      errorMsg
     );
     gl.deleteShader(shader);
-    return null;
+    throw new Error(errorMsg);
   }
 
   return shader;
@@ -149,12 +150,11 @@ const createGraphicProgram = (
 
   // If creating the shader program failed, alert
   if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-    alert(
-      `Unable to initialize the shader program: ${gl.getProgramInfoLog(
-        shaderProgram,
-      )}`,
-    );
-    return null;
+    const errorMsg = `Unable to initialize the shader program: ${gl.getProgramInfoLog(
+      shaderProgram,
+    )}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   return shaderProgram;

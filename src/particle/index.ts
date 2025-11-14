@@ -43,13 +43,7 @@ class PaxelParticle {
     return this._velocity;
   }
 
-  private get canvas() {
-    return this.gl.canvas as HTMLCanvasElement;
-  }
-
   constructor(
-    private gl: WebGL2RenderingContext,
-    private program: WebGLProgram,
     data: {
       position: MotionVector2
       width: number;

@@ -28,8 +28,6 @@ class GridController {
   }
 
   constructor(
-    private gl: WebGL2RenderingContext,
-    private glProgram: WebGLProgram,
     gridOptions: {
       width: number;
       height: number;
@@ -94,7 +92,7 @@ class GridController {
   }
 
   addCell(params: { x: number, y: number, color?: string }) {
-    const particle = new PaxelParticle(this.gl, this.glProgram, {
+    const particle = new PaxelParticle({
       position: {
         x: params.x,
         y: params.y
