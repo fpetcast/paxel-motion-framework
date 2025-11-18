@@ -2,24 +2,17 @@ import { GridController } from "../controllers/grid-controller";
 import { LoopSystem } from "../systems/loop-system";
 import { CollisionSystem } from "../systems/collision-system";
 import { ForceSystem } from "../systems/force-system";
-import { type PaxelRendererConfig, type PaxelRendererMode } from "../interfaces/renderer";
+import { UpdatePaxelRendererConfig, type PaxelRendererConfig } from "../interfaces/renderer";
 import { type MotionVector2 } from "../interfaces/particle";
 import { LayersController } from "../controllers/layers-controller";
-import { GraphicsApi } from "../interfaces/graphics-api";
+import { GraphicsApi, GraphicsApiType } from "../interfaces/graphics-api";
 import { WebGlCanvasApi } from "./graphics-api/webgl-canvas";
+import { GridOptions } from "../interfaces/grid";
+import { SystemName } from "../systems/system.abstract";
 
 
 class PaxelRenderer {
   private inited: boolean = false;
-
-  /**
-   * ANIMATION
-   */
-  //fixed time step logic
-  private step: number = 200;
-  private stepAccumulator: number = 0;
-  private lastFrameTime: number = performance.now();
-  private loopFrameId: number | null;
 
   /**
    * CONTROLLERS
@@ -30,7 +23,7 @@ class PaxelRenderer {
   /**
    * GRAPHICS API
   */
-  private graphicsApi: GraphicsApi;
+  private graphicsApi: GraphicsApi<GraphicsApiType>;
 
   /**
    * SYSTEMS
@@ -39,7 +32,24 @@ class PaxelRenderer {
   private forceSystem = ForceSystem.instance;
   private collisionSystem = CollisionSystem.instance;
 
-  private mode: PaxelRendererMode = "static";
+  /**
+ * MOTION
+ */
+  private lastTime: number = 0;
+  private accumulator: number = 0;
+  private loopFrameId: number | null;
+  private maxFPS: number = 60;
+  private get minFrameDuration(): number {
+    return 1000 / this.maxFPS;
+  }
+  private targetFPS: number = 30;
+  private get frameDuration(): number {
+    return 1000 / this.targetFPS;
+  }
+  private running: boolean = false;
+  private get isRunning(): boolean {
+    return this.running;
+  }
 
   private defaultDrawColor = "#000000"
 
@@ -66,7 +76,7 @@ class PaxelRenderer {
     }
   }
 
-  //#region PUBLIC API 
+  //#region LIBRARY API 
   //#region INIT
   init() {
     if (this.inited) {
@@ -74,30 +84,20 @@ class PaxelRenderer {
       return;
     }
 
-    const canvasWidth = this.config.canvas?.width ?? this.canvas.offsetWidth;
-    const canvasHeight = this.config.canvas?.height ?? this.canvas.offsetHeight;
-
-    this.canvas.style.width = `${canvasWidth}px`;
-    this.canvas.style.height = `${canvasHeight}px`;
-
-    const dpr = window.devicePixelRatio || 1;
-    const cssW = canvasWidth;
-    const cssH = canvasHeight;
-    this.canvas.width = cssW * dpr;
-    this.canvas.height = cssH * dpr;
+    this.setCanvas();
 
     this.graphicsApi = new WebGlCanvasApi(
       this.canvas,
-      this.config
+      {
+        canExport: this.config.canExport
+      }
     );
 
     if (this.graphicsApi.inited) {
       this.layersController = new LayersController();
-      this.gridController = new GridController({
-        width: this.config.grid.rows,
-        height: this.config.grid.columns,
-        cellSize: this.getCellSize(),
-      });
+
+      const gridOptions: GridOptions = this.getGridOptions();
+      this.gridController = new GridController(gridOptions);
 
       const defaultLayer = this.config.layers?.default ?? "layer-1";
       this.addLayer(defaultLayer);
@@ -116,15 +116,43 @@ class PaxelRenderer {
   resize() {
     this.graphicsApi.resize();
     if (this.inited) {
-      this.render(performance.now());
+      this.draw();
     }
+  }
+
+  private setCanvas() {
+    const canvasWidth = this.config.canvas.width;
+    const canvasHeight = this.config.canvas.height;
+
+    this.canvas.style.width = `${canvasWidth}px`;
+    this.canvas.style.height = `${canvasHeight}px`;
+
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvasWidth;
+    const cssH = canvasHeight;
+    this.canvas.width = cssW * dpr;
+    this.canvas.height = cssH * dpr;
   }
   //#endregion
 
 
   //#region CONFIG
-  updateConfig(config: PaxelRendererConfig) {
-    //TODO;
+  updateConfig(config: UpdatePaxelRendererConfig) {
+    if (config.canvas !== undefined) {
+      this.config.canvas = config.canvas;
+      this.setCanvas();
+    }
+
+    if (config.grid !== undefined) {
+      this.config.grid = config.grid;
+      const gridOptions: GridOptions = this.getGridOptions();
+      this.gridController.setGridOptions(gridOptions);
+    }
+
+    if (config.canExport !== undefined) {
+      this.config.canExport = config.canExport;
+      this.graphicsApi.canExport = config.canExport;
+    }
   }
   //#endregion
 
@@ -133,33 +161,37 @@ class PaxelRenderer {
   drawAt(
     x: number,
     y: number,
-    color: string
+    color?: string
   ) {
     const drawColor = color ?? this.defaultDrawColor;
-    this.gridController.setCell(x, y, drawColor);
-    this.render(performance.now(), true);
+    this.gridController.setCellAtPosition(x, y, drawColor);
+    this.draw();
   }
 
   removeAt(
     x: number,
     y: number
   ) {
-    this.gridController.destroyCell(x, y);
-    this.render(performance.now(), true);
+    this.gridController.removeCellAtPosition(x, y);
+    this.draw();
   }
 
   putPixel(
     row: number,
-    col: number
+    column: number,
+    color?: string
   ) {
-    throw new Error("Put Pixel Not Implemented!");
+    const drawColor = color ?? this.defaultDrawColor;
+    this.gridController.setCellInGrid(row, column, drawColor);
+    this.draw();
   }
 
   removePixel(
     row: number,
-    col: number
+    column: number
   ) {
-    throw new Error("Remove Pixel Not Implemented!");
+    this.gridController.removeCell(row, column);
+    this.draw();
   }
   //#endregion
 
@@ -170,45 +202,65 @@ class PaxelRenderer {
    * @param name force name
    * @param force vector representing x and y units on grid per step
    */
-  addForce(name: string, force: MotionVector2) {
+  setForce(
+    name: string,
+    force: MotionVector2,
+    layers?: string[]
+  ) {
     this.forceSystem.upsertForce(name, force);
-  }
 
-  updateForce(name: string, force: MotionVector2) {
-    this.forceSystem.upsertForce(name, force);
+    if (layers) {
+      layers.forEach((layer) => {
+        this.applyPhysics([layer], "force", true);
+      });
+    }
   }
 
   removeForce(name: string) {
     this.forceSystem.removeForce(name);
   }
 
-  applyForce(layerName: string, apply: boolean) {
-    const layer = this.layersController.getByName(layerName);
-
-    if (!layer) {
-      console.error('Cannot apply physics to layer: ', layerName);
-      return;
-    }
-
-    if (apply) {
-      this.forceSystem.register(layer);
-    } else {
-      this.forceSystem.unregister(layer);
-    }
+  setLoopTime(
+    loopAfter: number
+  ) {
+    this.loopSystem.setLoopAfter(loopAfter);
   }
 
-  applyLoop(layerName: string, apply: boolean) {
-    const layer = this.layersController.getByName(layerName);
+  applyPhysics(
+    layers: string[] | string,
+    systemName: SystemName,
+    apply: boolean
+  ) {
+    const group = Array.isArray(layers) ?
+      [...layers] :
+      [layers];
 
-    if (!layer) {
-      console.error('Cannot apply loop to layer: ', layerName);
-      return;
-    }
+    group.forEach((layerName) => {
+      const layer = this.layersController.getByName(layerName);
 
-    if (apply) {
-      this.loopSystem.register(layer);
-    } else {
-      this.loopSystem.unregister(layer);
+      if (!layer) {
+        console.error('Cannot apply physics to layer: ', layerName);
+        return;
+      }
+
+      const system = this.getSystem(systemName);
+
+      if (apply) {
+        system.register(layer);
+      } else {
+        system.unregister(layer);
+      }
+    })
+  }
+
+  private getSystem(name: SystemName) {
+    switch (name) {
+      case "force":
+        return this.forceSystem;
+      case "loop":
+        return this.loopSystem;
+      case "collision":
+        return this.collisionSystem;
     }
   }
   //#endregion
@@ -234,7 +286,11 @@ class PaxelRenderer {
     return this.layersController.drop(name);
   }
 
-  switchLayer(name: string) {
+  getActiveLayer() {
+    return this.gridController.getLayer()?.name;
+  }
+
+  setActiveLayer(name: string) {
     const layer = this.layersController.getByName(name);
 
     if (layer) {
@@ -242,159 +298,177 @@ class PaxelRenderer {
     }
   }
 
-  getActiveDrawLayer() {
-    return this.gridController.getLayer()?.name;
-  }
-
   getLayers() {
     return this.layersController.getNames();
-  }
-
-  clearLayer(name: string) {
-    this.layersController.clear(name);
-    if (this.mode !== "motion") {
-      this.render(performance.now(), true);
-    }
   }
 
   changeLayerOrder(name: string, index: number) {
     this.layersController.changeOrder(name, index);
   }
 
-  clearAllLayers() {
-    this.layersController.clearAll();
+  clearLayers(layer?: string) {
+    if (layer === undefined) {
+      this.layersController.clearAll();
+    } else {
+      this.layersController.clear(layer);
+    }
 
-    if (this.mode !== "motion") {
-      this.render(performance.now(), true);
+    if (!this.isRunning) {
+      this.draw();
     }
   }
   //#endregion
-  //#endregion
+
 
   //#region MOTION
-  getMode() {
-    return this.mode;
+  setFPS(fps: number) {
+    this.targetFPS = fps;
   }
 
-  setMode(mode: PaxelRendererMode) {
-    this.mode = mode;
+  setMaxFPS(maxFPS: number) {
+    this.maxFPS = maxFPS;
   }
 
   start() {
-    this.setMode('motion');
-    this.stepAccumulator = 0;
+    if (this.isRunning) {
+      return;
+    }
+
+    this.running = true;
+    this.lastTime = performance.now();
+
     this.loopSystem.init();
-    this.loopFrameId = requestAnimationFrame(this.render.bind(this));
+    this.loop();
   }
 
   reset() {
     this.loopSystem.reset();
+
     this.layersController.getParticles().forEach(particle => {
       particle.restoreOriginalPosition();
       particle.setFreeze(false);
     });
 
-    if (this.mode === "static") {
-      this.render(performance.now(), true);
+    if (!this.isRunning) {
+      this.draw();
     }
   }
 
   stop() {
-    if (!this.loopFrameId) {
+    if (!this.isRunning) {
       return;
     }
 
-    this.setMode('static');
-    cancelAnimationFrame(this.loopFrameId);
-    this.loopFrameId = null;
+    this.running = false;
+
+    if (this.loopFrameId) {
+      cancelAnimationFrame(this.loopFrameId);
+      this.loopFrameId = null;
+    }
   }
   //#endregion
   //#endregion
 
+
   //#region MAIN LOOP
-  private render(now: number, isSingleTick: boolean = false) {
-    const deltaTime = now - this.lastFrameTime;
-    this.lastFrameTime = now;
+  private loop(now?: number) {
+    if (!this.isRunning) {
+      return;
+    }
 
-    const maxFrame = 200; // max ms per frame
-    const ft = Math.min(deltaTime, maxFrame);
+    const currentTime = now ?? performance.now();
 
-    this.stepAccumulator += ft;
+    const deltaTime = currentTime - this.lastTime; //ms
+    this.lastTime = currentTime;
 
-    if (this.mode === "motion") {
-      // fixed step => motion simulation update
-      if (this.stepAccumulator >= this.step) {
-        const layers = this.layersController.getAll();
-        for (const layer of layers) {
-          const enabledForce = this.forceSystem.isRegistered(layer);
-          if (!enabledForce) {
+    //clamping deltaTime
+    const maxFrameTime = 200;
+    const ft = Math.min(deltaTime, maxFrameTime); //ms
+
+    this.accumulator += ft;
+
+    // fixed step => motion simulation update
+    if (this.accumulator >= this.frameDuration) {
+      const layers = this.layersController.getAll();
+      for (const layer of layers) {
+        const enabledForce = this.forceSystem.isRegistered(layer);
+        if (!enabledForce) {
+          continue;
+        }
+
+        const { particles } = layer;
+        this.loopSystem.update(this.accumulator);
+
+        const isLoop = this.loopSystem.checkLoop();
+        if (isLoop) {
+          continue;
+        }
+
+        for (const particle of particles) {
+          if (particle.isFreezed) {
             continue;
           }
 
-          const { particles } = layer;
-          this.loopSystem.update(this.stepAccumulator);
+          let updatePos = this.forceSystem.applyForces(deltaTime, particle);
 
-          for (const particle of particles) {
-            if (particle.isFreezed) {
-              continue;
-            }
+          //TODO: should optimize and revise collision system rules
+          // if (this.collisionSystem.isRegistered(layer)) {
+          //   let isColliding = false;
 
-            let updatePos = this.forceSystem.applyForces(deltaTime, particle);
+          //   if (
+          //     this.collisionSystem.isOutOfBounds({
+          //       position: updatePos,
+          //       size: particle.size
+          //     }, this.canvas)
+          //   ) {
+          //     particle.setFreeze(true);
+          //     continue;
+          //   }
 
-            //TODO: should optimize and revise collision system rules
-            if (this.collisionSystem.isRegistered(layer)) {
-              let isColliding = false;
+          //   if (!isColliding) {
+          //     for (const collider of this.layersController.getParticles()) {
+          //       if (particle.id === collider.id || !collider.isFreezed) {
+          //         continue;
+          //       }
 
-              if (
-                this.collisionSystem.isOutOfBounds({
-                  position: updatePos,
-                  size: particle.size
-                }, this.canvas)
-              ) {
-                particle.setFreeze(true);
-                continue;
-              }
+          //       if (
+          //         this.collisionSystem.isColliding(
+          //           { position: updatePos, size: particle.size },
+          //           { position: collider.position, size: collider.size }
+          //         )
+          //       ) {
+          //         particle.setFreeze(true);
+          //         isColliding = true;
+          //         break;
+          //       }
+          //     }
+          //   }
 
-              if (!isColliding) {
-                for (const collider of this.layersController.getParticles()) {
-                  if (particle.id === collider.id || !collider.isFreezed) {
-                    continue;
-                  }
+          //   if (isColliding) {
+          //     continue;
+          //   }
+          // }
 
-                  if (
-                    this.collisionSystem.isColliding(
-                      { position: updatePos, size: particle.size },
-                      { position: collider.position, size: collider.size }
-                    )
-                  ) {
-                    particle.setFreeze(true);
-                    isColliding = true;
-                    break;
-                  }
-                }
-              }
-
-              if (isColliding) {
-                continue;
-              }
-            }
-
-            particle.setPosition(updatePos.x, updatePos.y);
-          }
-
+          particle.setPosition(updatePos.x, updatePos.y);
         }
 
-        this.stepAccumulator -= this.step;
       }
+
+      this.accumulator -= this.frameDuration;
     }
 
+    this.draw();
+
+    if (this.isRunning) {
+      this.loopFrameId = requestAnimationFrame(this.loop.bind(this));
+    }
+  }
+
+  private draw() {
     this.graphicsApi.draw(
+      this.getGridOptions(),
       this.layersController.getParticles()
     );
-
-    if (!isSingleTick) {
-      requestAnimationFrame(this.render.bind(this));
-    }
   }
   //#endregion
 
@@ -402,6 +476,14 @@ class PaxelRenderer {
   //#region UTILS
   private getCellSize() {
     return Math.floor(this.canvas.width / this.config.grid.rows);
+  }
+
+  private getGridOptions() {
+    return {
+      rows: this.config.grid.rows,
+      columns: this.config.grid.columns,
+      cellSize: this.getCellSize(),
+    }
   }
   //#endregion
 }

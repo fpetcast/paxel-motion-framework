@@ -1,7 +1,10 @@
 import { Layer } from "../interfaces/layers";
-import { MotionSystem } from "../interfaces/systems";
+import { ISystem } from "../interfaces/systems";
 
-abstract class MotionSystemAbstract implements MotionSystem {
+export const SYSTEMS = ['loop', 'force', 'collision'] as const;
+export type SystemName = typeof SYSTEMS[number];
+
+abstract class SystemAbstract implements ISystem {
   registry: Map<string, Layer> = new Map();
 
   abstract init(): void
@@ -27,4 +30,4 @@ abstract class MotionSystemAbstract implements MotionSystem {
   }
 }
 
-export { MotionSystemAbstract }
+export { SystemAbstract }

@@ -1,9 +1,20 @@
 import { PaxelParticle } from "../particle";
+import { GridOptions } from "./grid";
 
-export interface GraphicsApi {
+export type GraphicsApiType = "webgl"
+export interface GraphicsApi<T extends GraphicsApiType> {
+  type: T,
   inited: boolean,
-  draw: (cells: PaxelParticle[]) => void,
+  canExport: boolean,
+  draw: (
+    gridOptions: GridOptions,
+    cells: PaxelParticle[]
+  ) => void,
   resize: () => void,
+}
+
+export interface GraphicsApiOptions {
+  canExport: boolean,
 }
 
 export interface ProgramAttribute {

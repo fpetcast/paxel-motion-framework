@@ -1,8 +1,8 @@
 
 import { Layer } from "../interfaces/layers";
-import { MotionSystemAbstract } from "./motion-system.abstract";
+import { SystemAbstract } from "./system.abstract";
 
-class LoopSystem extends MotionSystemAbstract {
+class LoopSystem extends SystemAbstract {
   private loopAfter = 2000;
   private loopTimer = 0;
 
@@ -13,9 +13,12 @@ class LoopSystem extends MotionSystemAbstract {
   }
 
   update(time: number) {
+    this.loopTimer -= time;
+  };
+
+  checkLoop(): boolean {
     if (this.loopTimer > 0) {
-      this.loopTimer -= time;
-      return;
+      return false;
     }
 
     this.registry.forEach((layer) => {
@@ -23,9 +26,19 @@ class LoopSystem extends MotionSystemAbstract {
     })
 
     this.reset();
-  };
 
-  loop(layer: Layer) {
+    return true;
+  }
+
+  reset() {
+    this.loopTimer = this.loopAfter;
+  }
+
+  setLoopAfter(after: number) {
+    this.loopAfter = after;
+  }
+
+  private loop(layer: Layer) {
     const particles = layer.particles;
     particles.forEach((particle) => {
       particle.restoreOriginalPosition();
@@ -33,13 +46,7 @@ class LoopSystem extends MotionSystemAbstract {
     });
   }
 
-  setLoopAfter(after: number) {
-    this.loopAfter = after;
-  }
 
-  reset() {
-    this.loopTimer = this.loopAfter;
-  }
 
   private constructor() {
     super();

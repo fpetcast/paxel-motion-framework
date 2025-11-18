@@ -1,4 +1,6 @@
 
+export type UpdatePaxelRendererConfig = Partial<Pick<PaxelRendererConfig, "canvas" | "grid" | "canExport">>;
+
 export interface PaxelRendererConfig {
   init: boolean,
   canExport: boolean,

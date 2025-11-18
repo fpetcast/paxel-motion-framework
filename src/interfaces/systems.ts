@@ -7,7 +7,7 @@ export interface Collider {
   position: MotionVector2
 }
 
-export interface MotionSystem {
+export interface ISystem {
   init: () => void
   registry: Map<string, Layer>
   register: (layer: Layer) => void

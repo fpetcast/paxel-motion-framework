@@ -1,10 +1,11 @@
-import { PaxelRendererConfig } from "../../interfaces";
-import { GraphicsApi } from "../../interfaces/graphics-api";
+import { GraphicsApi, GraphicsApiOptions, GraphicsApiType } from "../../interfaces/graphics-api";
+import { GridOptions } from "../../interfaces/grid";
 import { PaxelParticle } from "../../particle";
 import { shaders } from "../../shaders/instanced-pixels";
 import { createGraphicProgram, createOrthoMatrix, resizeCanvasToDisplaySize } from "../../utils/webgl";
 
-class WebGlCanvasApi implements GraphicsApi {
+class WebGlCanvasApi implements GraphicsApi<"webgl"> {
+  private gl: WebGL2RenderingContext;
   private renderPixelProgram: WebGLProgram | null;
   private vao: WebGLVertexArrayObject;
   private quadVBO: WebGLBuffer;
@@ -13,21 +14,22 @@ class WebGlCanvasApi implements GraphicsApi {
   private uCellSize: WebGLUniformLocation;
   private uProjectionMatrix: WebGLUniformLocation;
 
+  public type: GraphicsApiType = "webgl";
+
   private _inited: boolean = false;
   get inited() {
     return this._inited;
   }
 
-  public get gl() {
-    return this.canvas.getContext("webgl2",
-      { alpha: true, preserveDrawingBuffer: this.config.canExport }
-    ) as WebGL2RenderingContext
-  }
+  public canExport: boolean = false;
+
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private config: PaxelRendererConfig
+    private options: GraphicsApiOptions,
   ) {
+    this.canExport = this.options.canExport;
+
     this.initWebGlContext();
 
     const { fragment, vertex } = shaders();
@@ -43,7 +45,10 @@ class WebGlCanvasApi implements GraphicsApi {
     this._inited = true;
   }
 
-  draw(cells: PaxelParticle[]) {
+  draw(
+    gridOptions: GridOptions,
+    cells: PaxelParticle[],
+  ) {
     const gl = this.gl;
 
     // Setup viewport e clear
@@ -51,8 +56,8 @@ class WebGlCanvasApi implements GraphicsApi {
     gl.clearColor(0.0, 0.0, 0.0, 0.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // typed arrays for gpu
 
+    // Typed arrays for gpu
     const posData = new Float32Array(cells.length * 2);
     //TODO: OPTIMZE TO UNSIGNED BYTES STRUCTURE
     const colData = new Float32Array(cells.length * (4 * 4));
@@ -70,7 +75,7 @@ class WebGlCanvasApi implements GraphicsApi {
       colData[i * 4 + 3] = color[3];
     }
 
-    // Aggiorna buffer GPU
+    // Update buffer GPU
     gl.bindBuffer(gl.ARRAY_BUFFER, this.posVBO);
     gl.bufferData(gl.ARRAY_BUFFER, posData, gl.DYNAMIC_DRAW);
 
@@ -78,13 +83,17 @@ class WebGlCanvasApi implements GraphicsApi {
     gl.bufferData(gl.ARRAY_BUFFER, colData, gl.DYNAMIC_DRAW);
 
     gl.useProgram(this.renderPixelProgram);
-    // set uniforms
-    const cellSize = this.getCellSize();
+
+    // Set uniforms
+    // CellSize
+    const { cellSize, rows } = gridOptions;
     gl.uniform1f(this.uCellSize, cellSize);
-    const orthoMatrix = this.getOrtographicMatrix();
+    //Matrix
+    const gridSize = cellSize * rows;
+    const orthoMatrix = this.getOrtographicMatrix(gridSize);
     this.gl.uniformMatrix4fv(this.uProjectionMatrix, false, orthoMatrix);
 
-    // draw all instances
+    // Draw all instances
     gl.bindVertexArray(this.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, cells.length);
     gl.bindVertexArray(null);
@@ -96,6 +105,10 @@ class WebGlCanvasApi implements GraphicsApi {
   }
 
   private initWebGlContext() {
+    this.gl = this.canvas.getContext("webgl2",
+      { alpha: true, preserveDrawingBuffer: this.canExport }
+    ) as WebGL2RenderingContext;
+
     if (!this.gl) {
       console.error('Cannot initialize webgl context');
     }
@@ -106,10 +119,7 @@ class WebGlCanvasApi implements GraphicsApi {
     this.resize();
   }
 
-  private getOrtographicMatrix() {
-    const { rows } = this.config.grid;
-    const cellSize = this.getCellSize();
-    const gridSize = cellSize * rows;
+  private getOrtographicMatrix(gridSize: number) {
     return createOrthoMatrix(
       0, gridSize, gridSize, 0
     )
@@ -157,10 +167,7 @@ class WebGlCanvasApi implements GraphicsApi {
 
     gl.bindVertexArray(null);
   }
-
-  private getCellSize() {
-    return Math.floor(this.canvas.width / this.config.grid.rows);
-  }
 }
 
+export type IWebGlCanvasApi = InstanceType<typeof WebGlCanvasApi>;
 export { WebGlCanvasApi }

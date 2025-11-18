@@ -1,9 +1,9 @@
 
-import { MotionSystemAbstract } from "./motion-system.abstract";
+import { SystemAbstract } from "./system.abstract";
 import { Collider } from "../interfaces/systems";
 
 
-class CollisionSystem extends MotionSystemAbstract {
+class CollisionSystem extends SystemAbstract {
   init() { }
 
   update(time: number) { };
