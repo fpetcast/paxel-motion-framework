@@ -76,7 +76,8 @@ function parseColorRGBA(
         /^rgba?\(\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*(?:,\s*([\d.]+%?)\s*)?\)$/
       );
       if (!numMatch) {
-        throw new Error(`Formato colore non valido: "${color}"`);
+        console.error(`Color format not valid: "${color}"`);
+        return new Float32Array([1.0, 1.0, 1.0, 1.0]);
       }
       const toVal = (v: string) =>
         v.endsWith("%")
@@ -88,11 +89,10 @@ function parseColorRGBA(
       a = numMatch[4] !== undefined ? toVal(numMatch[4]) : 255;
     }
   } else {
-    // array numerico [r,g,b] o [r,g,b,a]
     [r, g, b, a = 255] = color;
   }
 
-  // Normalizza e restituisce
+  // normalized color
   return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
 }
 

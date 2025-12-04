@@ -120,6 +120,10 @@ class PaxelRenderer {
     }
   }
 
+  setBackgroundColor(color: string) {
+    this.graphicsApi.backgroundColor = color;
+  }
+
   private setCanvas() {
     const canvasWidth = this.config.canvas.width;
     const canvasHeight = this.config.canvas.height;
@@ -220,10 +224,16 @@ class PaxelRenderer {
     this.forceSystem.removeForce(name);
   }
 
+  /**
+   * Set the loop time before simulation loops in seconds
+   * 
+   * @param loopTime seconds before loop
+   */
   setLoopTime(
-    loopAfter: number
+    loopTime: number
   ) {
-    this.loopSystem.setLoopAfter(loopAfter);
+    const loopMs = loopTime * 1000;
+    this.loopSystem.setLoopAfter(loopMs);
   }
 
   applyPhysics(

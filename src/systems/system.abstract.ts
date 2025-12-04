@@ -14,7 +14,6 @@ abstract class SystemAbstract implements ISystem {
 
   register(layer: Layer) {
     if (this.isRegistered(layer)) {
-      console.log('is registered yet');
       return;
     }
 

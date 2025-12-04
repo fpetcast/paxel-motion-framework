@@ -6,6 +6,7 @@ export interface GraphicsApi<T extends GraphicsApiType> {
   type: T,
   inited: boolean,
   canExport: boolean,
+  backgroundColor: string,
   draw: (
     gridOptions: GridOptions,
     cells: PaxelParticle[]
@@ -15,6 +16,7 @@ export interface GraphicsApi<T extends GraphicsApiType> {
 
 export interface GraphicsApiOptions {
   canExport: boolean,
+  backgroundColor?: string,
 }
 
 export interface ProgramAttribute {

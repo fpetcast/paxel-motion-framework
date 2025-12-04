@@ -2,7 +2,7 @@ import { GraphicsApi, GraphicsApiOptions, GraphicsApiType } from "../../interfac
 import { GridOptions } from "../../interfaces/grid";
 import { PaxelParticle } from "../../particle";
 import { shaders } from "../../shaders/instanced-pixels";
-import { createGraphicProgram, createOrthoMatrix, resizeCanvasToDisplaySize } from "../../utils/webgl";
+import { createGraphicProgram, createOrthoMatrix, parseColorRGBA, resizeCanvasToDisplaySize } from "../../utils/webgl";
 
 class WebGlCanvasApi implements GraphicsApi<"webgl"> {
   private gl: WebGL2RenderingContext;
@@ -22,7 +22,7 @@ class WebGlCanvasApi implements GraphicsApi<"webgl"> {
   }
 
   public canExport: boolean = false;
-
+  public backgroundColor: string = "#ffffff";
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -53,7 +53,8 @@ class WebGlCanvasApi implements GraphicsApi<"webgl"> {
 
     // Setup viewport e clear
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
+    gl.clearColor(r, g, b, a);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
 
