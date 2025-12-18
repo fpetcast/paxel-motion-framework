@@ -18,7 +18,7 @@ export interface PaxelRendererConfig {
   defaultColor?: string;
 }
 
-export const MOTION_RENDERER_MODES = [
+const MOTION_RENDERER_MODES = [
   "static",
   "motion"
 ] as const;

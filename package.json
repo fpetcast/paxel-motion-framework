@@ -1,18 +1,19 @@
 {
   "name": "paxel-motion-framework",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./build/index.js",
+  "types": "./build/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./build/index.d.ts",
+      "import": "./build/index.mjs"
     }
   },
   "sideEffects": false,
   "scripts": {
     "build": "tsdown",
+    "build:prod": "tsdown --out-dir ./build",
     "dev": "tsdown --watch"
   },
   "devDependencies": {
@@ -21,7 +22,7 @@
   },
   "author": "Francesco Pettrone",
   "license": "MIT",
-  "description": "Paxel motion framework enables drawing pixel art and create motion designs with html canvas",
+  "description": "Paxel motion framework enables rendering pixel art and create motion design effects on the web using a webgl canvas",
   "keywords": [
     "typescript",
     "framework",
