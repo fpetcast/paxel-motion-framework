@@ -674,8 +674,8 @@ var PaxelRenderer = class {
 		this.collisionSystem = CollisionSystem.instance;
 		this.lastTime = 0;
 		this.accumulator = 0;
-		this.maxFPS = 60;
-		this.targetFPS = 30;
+		this.maxFPS = 30;
+		this.targetFPS = 15;
 		this.running = false;
 		this.defaultDrawColor = "#000000";
 		if (this.config.init) this.init();
@@ -821,10 +821,11 @@ var PaxelRenderer = class {
 		if (!this.isRunning) this.draw();
 	}
 	setFPS(fps) {
+		if (fps > this.maxFPS) {
+			console.warn("The max fps limit is set to", this.maxFPS);
+			return;
+		}
 		this.targetFPS = fps;
-	}
-	setMaxFPS(maxFPS) {
-		this.maxFPS = maxFPS;
 	}
 	start() {
 		if (this.isRunning) return;

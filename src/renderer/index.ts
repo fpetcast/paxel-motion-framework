@@ -38,11 +38,11 @@ class PaxelRenderer {
   private lastTime: number = 0;
   private accumulator: number = 0;
   private loopFrameId: number | null;
-  private maxFPS: number = 60;
+  private maxFPS: number = 30;
   private get minFrameDuration(): number {
     return 1000 / this.maxFPS;
   }
-  private targetFPS: number = 30;
+  private targetFPS: number = 15;
   private get frameDuration(): number {
     return 1000 / this.targetFPS;
   }
@@ -332,11 +332,12 @@ class PaxelRenderer {
 
   //#region MOTION
   setFPS(fps: number) {
-    this.targetFPS = fps;
-  }
+    if (fps > this.maxFPS) {
+      console.warn("The max fps limit is set to", this.maxFPS);
+      return;
+    }
 
-  setMaxFPS(maxFPS: number) {
-    this.maxFPS = maxFPS;
+    this.targetFPS = fps;
   }
 
   start() {

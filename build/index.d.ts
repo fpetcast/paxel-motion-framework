@@ -95,7 +95,6 @@ declare class PaxelRenderer {
   changeLayerOrder(name: string, index: number): void;
   clearLayers(layer?: string): void;
   setFPS(fps: number): void;
-  setMaxFPS(maxFPS: number): void;
   start(): void;
   reset(): void;
   stop(): void;
