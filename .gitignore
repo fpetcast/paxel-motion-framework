@@ -5,9 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Build output
+# Dist output
 dist/
-build/
 lib/
 
 # TypeScript

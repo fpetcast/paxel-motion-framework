@@ -1,19 +1,52 @@
 
-import { PaxelParticle } from "../particle";
-import { MotionSystemAbstract } from "./motion-system.abstract";
+import { Layer } from "../interfaces/layers";
+import { SystemAbstract } from "./system.abstract";
 
-class LoopSystem extends MotionSystemAbstract {
-  init() { }
+class LoopSystem extends SystemAbstract {
+  private loopAfter = 2000;
+  private loopTimer = 0;
+
+  init() {
+    if (this.loopTimer <= 0) {
+      this.reset();
+    }
+  }
 
   update(time: number) {
-    this.registry.forEach((particle) => {
-      this.loop(particle);
-    })
+    this.loopTimer -= time;
   };
 
-  loop(particle: PaxelParticle) {
-    particle.restoreOriginalPosition();
+  checkLoop(): boolean {
+    if (this.loopTimer > 0) {
+      return false;
+    }
+
+    this.registry.forEach((layer) => {
+      this.loop(layer);
+    })
+
+    this.reset();
+
+    return true;
   }
+
+  reset() {
+    this.loopTimer = this.loopAfter;
+  }
+
+  setLoopAfter(after: number) {
+    this.loopAfter = after;
+  }
+
+  private loop(layer: Layer) {
+    const particles = layer.particles;
+    particles.forEach((particle) => {
+      particle.restoreOriginalPosition();
+      particle.setFreeze(false);
+    });
+  }
+
+
 
   private constructor() {
     super();

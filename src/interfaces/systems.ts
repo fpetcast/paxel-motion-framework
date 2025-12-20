@@ -1,4 +1,5 @@
-import { IMotionParticle } from "../particle"
+
+import { Layer } from "./layers"
 import { MotionVector2 } from "./particle"
 
 export interface Collider {
@@ -6,9 +7,10 @@ export interface Collider {
   position: MotionVector2
 }
 
-export interface MotionSystem {
+export interface ISystem {
   init: () => void
-  register: (particle: IMotionParticle) => void
-  unregister: (particle: IMotionParticle) => boolean
+  registry: Map<string, Layer>
+  register: (layer: Layer) => void
+  unregister: (layer: Layer) => boolean
   update: (time: number) => void
 }

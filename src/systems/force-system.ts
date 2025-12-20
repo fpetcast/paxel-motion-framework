@@ -1,9 +1,9 @@
 
 import { MotionVector2 } from "../interfaces/particle";
 import { PaxelParticle } from "../particle";
-import { MotionSystemAbstract } from "./motion-system.abstract";
+import { SystemAbstract } from "./system.abstract";
 
-class ForceSystem extends MotionSystemAbstract {
+class ForceSystem extends SystemAbstract {
   private _forces: Map<string, MotionVector2> = new Map();
 
   init() { }
@@ -14,7 +14,7 @@ class ForceSystem extends MotionSystemAbstract {
     this._forces.clear();
   }
 
-  addForce(name: string, force: MotionVector2) {
+  upsertForce(name: string, force: MotionVector2) {
     this._forces.set(name, force);
   }
 

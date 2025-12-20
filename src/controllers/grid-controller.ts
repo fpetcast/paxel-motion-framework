@@ -1,15 +1,16 @@
-import { IMotionParticle, PaxelParticle } from "../particle";
+import { GridOptions } from "../interfaces/grid";
+import { Layer } from "../interfaces/layers";
+import { PaxelParticle } from "../particle";
 
 class GridController {
   private width: number;
   private height: number;
   private cellSize: number;
 
-  private _particles: IMotionParticle[] = [];
-  private lookupParticles: Map<string, number> = new Map();
+  private drawLayer: Layer;
 
   public get motionParticles() {
-    return this._particles;
+    return this.drawLayer.particles;
   }
 
   public get gridData() {
@@ -28,30 +29,49 @@ class GridController {
   }
 
   constructor(
-    private gl: WebGL2RenderingContext,
-    private glProgram: WebGLProgram,
-    gridOptions: {
-      width: number;
-      height: number;
-      cellSize: number;
-    } = {
-        width: 32,
-        height: 32,
-        cellSize: 20,
-      }
+    gridOptions: GridOptions = {
+      rows: 32,
+      columns: 32,
+      cellSize: 20,
+    }
   ) {
-    this.width = gridOptions.width;
-    this.height = gridOptions.height;
+    this.setGridOptions(gridOptions);
+  }
+
+  setGridOptions(gridOptions: GridOptions) {
+    this.width = gridOptions.rows;
+    this.height = gridOptions.columns;
     this.cellSize = gridOptions.cellSize;
   }
 
-  setCell(e: PointerEvent, color: string) {
-    const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
+  setLayer(layer: Layer) {
+    this.drawLayer = layer;
+  }
+
+  getLayer() {
+    return this.drawLayer;
+  }
+
+  setCellAtPosition(
+    clientX: number,
+    clinetY: number,
+    color: string
+  ) {
+    const { row, column } = this.getCellGridPosition(clientX, clinetY);
+    this.setCellInGrid(row, column, color);
+  }
+
+  setCellInGrid(
+    row: number,
+    column: number,
+    color: string,
+  ) {
+    const cellIndex = this.getCellIndex(row, column);
 
     if (cellIndex < 0) {
       this.addCell({
-        x: column * this.cellSize,
-        y: row * this.cellSize,
+        row,
+        column,
         color
       });
 
@@ -63,70 +83,55 @@ class GridController {
     });
   }
 
-  destroyCell(e: PointerEvent) {
-    const { row, column, cellIndex } = this.getCellAtPosition(e.offsetX, e.offsetY);
-    const lastIndex = this._particles.length - 1;
+  removeCellAtPosition(clientX: number, clientY: number) {
+    const { row, column } = this.getCellGridPosition(clientX, clientY);
+    this.removeCell(row, column);
+  }
+
+  removeCell(row: number, column: number) {
+    const cellIndex = this.getCellIndex(row, column);
+    const lastIndex = this.drawLayer.particles.length - 1;
     const deleteIndex = cellIndex;
 
     if (deleteIndex > -1) {
-      this.lookupParticles.delete(this.posKey(row, column));
+      this.drawLayer.lookup.delete(this.posKey(row, column));
 
       // delete-swap for performances: last cell in the delete index, deleted cell pop from last index
       if (cellIndex !== lastIndex) {
-        const lastCell = this._particles[lastIndex];
-        this._particles[deleteIndex] = lastCell;
-        this.lookupParticles.set(this.posKey(Math.floor(lastCell.position.y / this.cellSize), Math.floor(lastCell.position.x / this.cellSize)), deleteIndex);
+        const lastCell = this.drawLayer.particles[lastIndex];
+        this.drawLayer.particles[deleteIndex] = lastCell;
+        this.drawLayer.lookup.set(this.posKey(Math.floor(lastCell.position.y / this.cellSize), Math.floor(lastCell.position.x / this.cellSize)), deleteIndex);
       }
 
-      this._particles.pop();
+      this.drawLayer.particles.pop();
       return true;
     }
 
     return false;
   }
 
-  addCell(params: { x: number, y: number, color?: string }) {
-    const particle = new PaxelParticle(this.gl, this.glProgram, {
+  addCell(params: {
+    row: number,
+    column: number,
+    color: string
+  }) {
+    const x = params.column * this.cellSize;
+    const y = params.row * this.cellSize;
+
+    const particle = new PaxelParticle({
       position: {
-        x: params.x,
-        y: params.y
+        x,
+        y
       },
       width: this.cellSize,
       height: this.cellSize,
-      color: params?.color
+      color: params.color
     });
 
-    this._particles.push(particle);
-    this.lookupParticles.set(this.posKey(Math.floor(params.y / this.cellSize), Math.floor(params.x / this.cellSize)), this._particles.length - 1);
+    this.drawLayer.particles.push(particle);
+    this.drawLayer.lookup.set(this.posKey(Math.floor(y / this.cellSize), Math.floor(x / this.cellSize)), this.drawLayer.particles.length - 1);
 
     return particle;
-  }
-
-  private posKey(x: number, y: number): string {
-    return `${x},${y}`;
-  }
-
-  getCellIndex(row: number, column: number) {
-    const positionKey = this.posKey(row, column);
-    return this.lookupParticles.get(positionKey) ?? -1;
-  }
-
-  getCellAtPosition(x: number, y: number): {
-    row: number,
-    column: number,
-    cellIndex: number,
-    cell: PaxelParticle | undefined
-  } {
-    const row = Math.floor(y / this.cellSize);
-    const column = Math.floor(x / this.cellSize);
-    const cellIndex = this.getCellIndex(row, column);
-
-    return {
-      row,
-      column,
-      cellIndex,
-      cell: cellIndex > 0 ? this._particles[cellIndex] : undefined
-    }
   }
 
   updateCell(row: number, col: number, data: {
@@ -134,7 +139,7 @@ class GridController {
   }
   ) {
     const cellIndex = this.getCellIndex(row, col);
-    const cell = this._particles[cellIndex];
+    const cell = this.drawLayer.particles[cellIndex];
 
     if (!cell) {
       console.error("Cannot find cell at pos: row - col ", row, col);
@@ -144,6 +149,25 @@ class GridController {
     if (cell.getColor() !== data.color) {
       cell.setColor(data.color);
     }
+  }
+
+  private getCellIndex(row: number, column: number) {
+    const positionKey = this.posKey(row, column);
+    return this.drawLayer.lookup.get(positionKey) ?? -1;
+  }
+
+  private getCellGridPosition(x: number, y: number): {
+    row: number,
+    column: number,
+  } {
+    const row = Math.floor(y / this.cellSize);
+    const column = Math.floor(x / this.cellSize);
+
+    return { row, column }
+  }
+
+  private posKey(x: number, y: number): string {
+    return `${x},${y}`;
   }
 }
 

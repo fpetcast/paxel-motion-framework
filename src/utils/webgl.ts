@@ -76,7 +76,8 @@ function parseColorRGBA(
         /^rgba?\(\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*,\s*([\d.]+%?)\s*(?:,\s*([\d.]+%?)\s*)?\)$/
       );
       if (!numMatch) {
-        throw new Error(`Formato colore non valido: "${color}"`);
+        console.error(`Color format not valid: "${color}"`);
+        return new Float32Array([1.0, 1.0, 1.0, 1.0]);
       }
       const toVal = (v: string) =>
         v.endsWith("%")
@@ -88,11 +89,10 @@ function parseColorRGBA(
       a = numMatch[4] !== undefined ? toVal(numMatch[4]) : 255;
     }
   } else {
-    // array numerico [r,g,b] o [r,g,b,a]
     [r, g, b, a = 255] = color;
   }
 
-  // Normalizza e restituisce
+  // normalized color
   return new Float32Array([r / 255, g / 255, b / 255, a / 255]);
 }
 
@@ -115,11 +115,12 @@ const loadShader = (
   // See if it compiled successfully
 
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    alert(
-      `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`,
+    const errorMsg = `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`;
+    console.error(
+      errorMsg
     );
     gl.deleteShader(shader);
-    return null;
+    throw new Error(errorMsg);
   }
 
   return shader;
@@ -149,12 +150,11 @@ const createGraphicProgram = (
 
   // If creating the shader program failed, alert
   if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-    alert(
-      `Unable to initialize the shader program: ${gl.getProgramInfoLog(
-        shaderProgram,
-      )}`,
-    );
-    return null;
+    const errorMsg = `Unable to initialize the shader program: ${gl.getProgramInfoLog(
+      shaderProgram,
+    )}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   return shaderProgram;

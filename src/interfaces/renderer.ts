@@ -1,20 +1,25 @@
 
+export type UpdatePaxelRendererConfig = Partial<Pick<PaxelRendererConfig, "canvas" | "grid" | "canExport">>;
+
 export interface PaxelRendererConfig {
+  init: boolean,
+  canExport: boolean,
+  grid: {
+    rows: number,
+    columns: number,
+  }
   canvas: {
     width: number,
     height: number
   },
-  grid: {
-    rows: number,
-    columns: number,
-    cellSize: number,
-    showHelper: boolean
-  }
-  init: boolean
+  layers?: {
+    default?: string
+  },
+  defaultColor?: string;
 }
 
-export interface ProgramAttribute {
-  location: number,
-  name: string,
-  buffer: WebGLBuffer
-}
+const MOTION_RENDERER_MODES = [
+  "static",
+  "motion"
+] as const;
+export type PaxelRendererMode = typeof MOTION_RENDERER_MODES[number];
