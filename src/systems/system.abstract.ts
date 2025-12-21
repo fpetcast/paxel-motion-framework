@@ -12,6 +12,22 @@ abstract class SystemAbstract implements ISystem {
 
   constructor() { }
 
+  apply(layer: Layer, apply: boolean = true) {
+    if (apply) {
+      this.register(layer);
+    } else {
+      this.unregister(layer);
+    }
+  }
+
+  toggle(layer: Layer) {
+    if (this.isRegistered(layer)) {
+      this.unregister(layer);
+    } else {
+      this.register(layer);
+    }
+  }
+
   register(layer: Layer) {
     if (this.isRegistered(layer)) {
       return;

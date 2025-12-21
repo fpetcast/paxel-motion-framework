@@ -10,6 +10,8 @@ export interface Collider {
 export interface ISystem {
   init: () => void
   registry: Map<string, Layer>
+  apply: (layer: Layer, apply: boolean) => void
+  toggle: (layer: Layer) => void
   register: (layer: Layer) => void
   unregister: (layer: Layer) => boolean
   update: (time: number) => void

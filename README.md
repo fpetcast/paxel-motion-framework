@@ -2,7 +2,6 @@
 
 A lightweight **pixel art** and **environment simulation** framework for HTML Canvas, perfect for retro‑style visuals and smooth motion design animations.
 
----
 
 ## ✨ Features
 
@@ -16,6 +15,9 @@ A lightweight **pixel art** and **environment simulation** framework for HTML Ca
 
 Here will be listed all the known applications using this framework in any creative way:
 - 🎨 **Paxel Motion App** : a free drawing and motion graphics pixel art application, to let everyone experiment with retro visuals and imagination. Is developed and maintained by the same developer of the framework. Give it a try: [Paxel Motion App](https://paxelmotionapp.com/).
+<img src="./public/docs/paxelmotionapp_v1.png" alt="Paxel Motion App Screenshot" width="500px">
+
+---
 
 ## 📥 Installation & Build
 
@@ -33,6 +35,8 @@ This library is **not published on npm**. You can install it in two ways:
    Copy it directly into your project and import from there.
 
 The **build** folder contains the index file of the library, the minified version and the .d.ts for types.
+
+---
 
 ## 💾 Usage
 
@@ -152,6 +156,19 @@ const removeLayerName = "remove-me";
 paxelRenderer.removeLayer(removeLayerName);
 ```
 
+Another important feature of layers is that they can be cleared from
+all the pixels rendered on them. To clear a single layer, just call
+**clearLayer** method, but as a good shortcut to completely clear
+the frame **clearAllLayers** should do the trick.
+
+```typescript
+const clearLayerName = "clear-me";
+paxelRenderer.clearLayer(clearLayerName);
+
+// this should remove all pixels from the frame and layers
+paxelRenderer.clearAllLayers();
+```
+
 ### 👾 Physics
 One of the coolest things you can do is to make static objects
 start moving, like a magician, or nowadays like animators.
@@ -178,20 +195,19 @@ const force = {
   x: 1,
   y: 0
 };
-paxelRenderer.setForce(force.name, force);
+paxelRenderer.createForce(force.name, force);
 
 // create a layer or register one yet created to the force
-const applyForce = true;
 const movingLayer = "moving-layer"
-paxelRenderer.applyPhysics(movingLayer, "force", applyForce);
+paxelRenderer.applyForce(movingLayer);
 
-paxelRenderer.play(); // to start seeing the force in action
+paxelRenderer.play(); // to see the force in action
 ```
 
 You can also define the target **FPS** (but really always depends on the web browser),
 and the **loop time**. Applying the loop on specific layers will trigger 
 a **restart** for all the pixels involved, that will return to the **original positions** 
-like in an animation never ending cycle.
+like in an animation cycle.
 
 ```typescript
 // maxFps set to 30
@@ -202,7 +218,8 @@ paxelRenderer.setFPS(fps);
 let seconds = 2;
 paxelRenderer.setLoopTime(seconds);
 
-const applyLoop = true;
-const movingLayer = "moving-layer"
-paxelRenderer.applyPhysics(movingLayer, "loop", applyLoop);
+const loopedLayer = "looped-layer"
+paxelRenderer.applyLoop(loopedLayer);
+
+paxelRenderer.play(); // to see the layer looping cycle
 ```

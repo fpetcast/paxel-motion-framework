@@ -25,10 +25,6 @@ interface MotionVector2 {
   y: number;
 }
 //#endregion
-//#region src/systems/system.abstract.d.ts
-declare const SYSTEMS: readonly ["loop", "force", "collision"];
-type SystemName = typeof SYSTEMS[number];
-//#endregion
 //#region src/renderer/index.d.ts
 declare class PaxelRenderer {
   private canvas;
@@ -77,29 +73,30 @@ declare class PaxelRenderer {
    * @param name force name
    * @param force vector representing x and y units on grid per step
    */
-  setForce(name: string, force: MotionVector2, layers?: string[]): void;
+  createForce(name: string, forceVector: MotionVector2): void;
   removeForce(name: string): void;
+  applyForce(layerName: string, apply?: boolean): void;
   /**
    * Set the loop time before simulation loops in seconds
    *
    * @param loopTime seconds before loop
    */
   setLoopTime(loopTime: number): void;
-  applyPhysics(layers: string[] | string, systemName: SystemName, apply: boolean): void;
-  private getSystem;
+  applyLoop(layerName: string, apply?: boolean): void;
   addLayer(name?: string): void;
   removeLayer(name: string): number;
   getActiveLayer(): string;
   setActiveLayer(name: string): void;
   getLayers(): string[];
   changeLayerOrder(name: string, index: number): void;
-  clearLayers(layer?: string): void;
+  clearLayer(layer: string): void;
+  clearAllLayers(): void;
   setFPS(fps: number): void;
   start(): void;
   reset(): void;
   stop(): void;
   private loop;
-  private draw;
+  draw(): void;
   private getCellSize;
   private getGridOptions;
 }

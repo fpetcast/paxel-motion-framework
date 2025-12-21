@@ -8,8 +8,6 @@ import { LayersController } from "../controllers/layers-controller";
 import { GraphicsApi, GraphicsApiType } from "../interfaces/graphics-api";
 import { WebGlCanvasApi } from "./graphics-api/webgl-canvas";
 import { GridOptions } from "../interfaces/grid";
-import { SystemName } from "../systems/system.abstract";
-
 
 class PaxelRenderer {
   private inited: boolean = false;
@@ -206,24 +204,27 @@ class PaxelRenderer {
    * @param name force name
    * @param force vector representing x and y units on grid per step
    */
-  setForce(
+  createForce(
     name: string,
-    force: MotionVector2,
-    layers?: string[]
+    forceVector: MotionVector2,
   ) {
-    this.forceSystem.upsertForce(name, force);
-
-    if (layers) {
-      layers.forEach((layer) => {
-        this.applyPhysics([layer], "force", true);
-      });
-    }
+    this.forceSystem.upsertForce(name, forceVector);
   }
 
   removeForce(name: string) {
     this.forceSystem.removeForce(name);
   }
 
+  applyForce(layerName: string, apply: boolean = true) {
+    const layer = this.layersController.getByName(layerName);
+
+    if (!layer) {
+      console.error('Cannot apply force to layer: ', layerName);
+      return;
+    }
+
+    this.forceSystem.apply(layer, apply);
+  }
   /**
    * Set the loop time before simulation loops in seconds
    * 
@@ -236,42 +237,15 @@ class PaxelRenderer {
     this.loopSystem.setLoopAfter(loopMs);
   }
 
-  applyPhysics(
-    layers: string[] | string,
-    systemName: SystemName,
-    apply: boolean
-  ) {
-    const group = Array.isArray(layers) ?
-      [...layers] :
-      [layers];
+  applyLoop(layerName: string, apply: boolean = true) {
+    const layer = this.layersController.getByName(layerName);
 
-    group.forEach((layerName) => {
-      const layer = this.layersController.getByName(layerName);
-
-      if (!layer) {
-        console.error('Cannot apply physics to layer: ', layerName);
-        return;
-      }
-
-      const system = this.getSystem(systemName);
-
-      if (apply) {
-        system.register(layer);
-      } else {
-        system.unregister(layer);
-      }
-    })
-  }
-
-  private getSystem(name: SystemName) {
-    switch (name) {
-      case "force":
-        return this.forceSystem;
-      case "loop":
-        return this.loopSystem;
-      case "collision":
-        return this.collisionSystem;
+    if (!layer) {
+      console.error('Cannot apply loop to layer: ', layerName);
+      return;
     }
+
+    this.loopSystem.apply(layer, apply);
   }
   //#endregion
 
@@ -293,7 +267,13 @@ class PaxelRenderer {
   }
 
   removeLayer(name: string) {
-    return this.layersController.drop(name);
+    const removed = this.layersController.drop(name);
+
+    if (removed >= 0) {
+      this.draw();
+    }
+
+    return removed;
   }
 
   getActiveLayer() {
@@ -316,16 +296,14 @@ class PaxelRenderer {
     this.layersController.changeOrder(name, index);
   }
 
-  clearLayers(layer?: string) {
-    if (layer === undefined) {
-      this.layersController.clearAll();
-    } else {
-      this.layersController.clear(layer);
-    }
+  clearLayer(layer: string) {
+    this.layersController.clear(layer);
+    this.draw();
+  }
 
-    if (!this.isRunning) {
-      this.draw();
-    }
+  clearAllLayers() {
+    this.layersController.clearAll();
+    this.draw();
   }
   //#endregion
 
@@ -475,7 +453,7 @@ class PaxelRenderer {
     }
   }
 
-  private draw() {
+  draw() {
     this.graphicsApi.draw(
       this.getGridOptions(),
       this.layersController.getParticles()

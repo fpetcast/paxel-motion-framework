@@ -295,6 +295,14 @@ var SystemAbstract = class {
 	constructor() {
 		this.registry = /* @__PURE__ */ new Map();
 	}
+	apply(layer, apply = true) {
+		if (apply) this.register(layer);
+		else this.unregister(layer);
+	}
+	toggle(layer) {
+		if (this.isRegistered(layer)) this.unregister(layer);
+		else this.register(layer);
+	}
 	register(layer) {
 		if (this.isRegistered(layer)) return;
 		this.registry.set(layer.name, layer);
@@ -753,14 +761,19 @@ var PaxelRenderer = class {
 	* @param name force name
 	* @param force vector representing x and y units on grid per step
 	*/
-	setForce(name, force, layers) {
-		this.forceSystem.upsertForce(name, force);
-		if (layers) layers.forEach((layer) => {
-			this.applyPhysics([layer], "force", true);
-		});
+	createForce(name, forceVector) {
+		this.forceSystem.upsertForce(name, forceVector);
 	}
 	removeForce(name) {
 		this.forceSystem.removeForce(name);
+	}
+	applyForce(layerName, apply = true) {
+		const layer = this.layersController.getByName(layerName);
+		if (!layer) {
+			console.error("Cannot apply force to layer: ", layerName);
+			return;
+		}
+		this.forceSystem.apply(layer, apply);
 	}
 	/**
 	* Set the loop time before simulation loops in seconds
@@ -771,24 +784,13 @@ var PaxelRenderer = class {
 		const loopMs = loopTime * 1e3;
 		this.loopSystem.setLoopAfter(loopMs);
 	}
-	applyPhysics(layers, systemName, apply) {
-		(Array.isArray(layers) ? [...layers] : [layers]).forEach((layerName) => {
-			const layer = this.layersController.getByName(layerName);
-			if (!layer) {
-				console.error("Cannot apply physics to layer: ", layerName);
-				return;
-			}
-			const system = this.getSystem(systemName);
-			if (apply) system.register(layer);
-			else system.unregister(layer);
-		});
-	}
-	getSystem(name) {
-		switch (name) {
-			case "force": return this.forceSystem;
-			case "loop": return this.loopSystem;
-			case "collision": return this.collisionSystem;
+	applyLoop(layerName, apply = true) {
+		const layer = this.layersController.getByName(layerName);
+		if (!layer) {
+			console.error("Cannot apply loop to layer: ", layerName);
+			return;
 		}
+		this.loopSystem.apply(layer, apply);
 	}
 	addLayer(name) {
 		let layerName = name ?? "";
@@ -800,7 +802,9 @@ var PaxelRenderer = class {
 		}
 	}
 	removeLayer(name) {
-		return this.layersController.drop(name);
+		const removed = this.layersController.drop(name);
+		if (removed >= 0) this.draw();
+		return removed;
 	}
 	getActiveLayer() {
 		return this.gridController.getLayer()?.name;
@@ -815,10 +819,13 @@ var PaxelRenderer = class {
 	changeLayerOrder(name, index) {
 		this.layersController.changeOrder(name, index);
 	}
-	clearLayers(layer) {
-		if (layer === void 0) this.layersController.clearAll();
-		else this.layersController.clear(layer);
-		if (!this.isRunning) this.draw();
+	clearLayer(layer) {
+		this.layersController.clear(layer);
+		this.draw();
+	}
+	clearAllLayers() {
+		this.layersController.clearAll();
+		this.draw();
 	}
 	setFPS(fps) {
 		if (fps > this.maxFPS) {
