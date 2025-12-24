@@ -1,4 +1,4 @@
-import { defineConfig, UserConfig } from 'tsdown'
+import { defineConfig, type UserConfig } from 'tsdown'
 
 const SHARED_CONFIG: UserConfig = {
   entry: './src/index.ts',
