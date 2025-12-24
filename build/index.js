@@ -433,6 +433,7 @@ var LayersController = class {
 		this.layers.push({
 			name,
 			particles: [],
+			visible: true,
 			lookup: /* @__PURE__ */ new Map()
 		});
 		this.lookup.set(name, this.layers.length - 1);
@@ -441,12 +442,18 @@ var LayersController = class {
 		const dropLayerIndex = this.lookup.get(name) ?? -1;
 		if (dropLayerIndex >= 0) {
 			this.layers.splice(dropLayerIndex, 1);
+			this.updateIndexesLookup(dropLayerIndex);
 			this.lookup.delete(name);
 			return dropLayerIndex;
 		} else {
 			console.error("Cannot find layer: ", name);
 			return -1;
 		}
+	}
+	updateIndexesLookup(fromLayerIndex) {
+		this.lookup.forEach((layerIndex, layerName) => {
+			if (layerIndex > fromLayerIndex) this.lookup.set(layerName, --layerIndex);
+		});
 	}
 	changeOrder(name, toIndex) {
 		const fromIndex = this.layers.findIndex((layer$1) => layer$1.name === name);
@@ -491,11 +498,19 @@ var LayersController = class {
 	setActive(name) {
 		this.active = name;
 	}
+	setVisible(name, visible) {
+		const layer = this.getByName(name);
+		if (layer) layer.visible = visible;
+	}
+	isVisible(layer) {
+		return layer.visible;
+	}
 	getActive() {
 		return this.getByName(this.active);
 	}
 	getParticles() {
 		return this.layers.reduce((acc, layer) => {
+			if (!this.isVisible(layer)) return acc;
 			acc = [...acc, ...layer.particles];
 			return acc;
 		}, []);
@@ -812,6 +827,10 @@ var PaxelRenderer = class {
 	setActiveLayer(name) {
 		const layer = this.layersController.getByName(name);
 		if (layer) this.gridController.setLayer(layer);
+	}
+	setLayerVisibility(name, visible) {
+		this.layersController.setVisible(name, visible);
+		this.draw();
 	}
 	getLayers() {
 		return this.layersController.getNames();
