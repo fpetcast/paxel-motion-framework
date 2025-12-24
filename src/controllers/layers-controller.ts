@@ -14,6 +14,7 @@ class LayersController {
     this.layers.push({
       name,
       particles: [],
+      visible: true,
       lookup: new Map()
     });
     this.lookup.set(name, this.layers.length - 1);
@@ -24,12 +25,21 @@ class LayersController {
 
     if (dropLayerIndex >= 0) {
       this.layers.splice(dropLayerIndex, 1);
+      this.updateIndexesLookup(dropLayerIndex);
       this.lookup.delete(name);
       return dropLayerIndex;
     } else {
       console.error('Cannot find layer: ', name);
       return -1;
     }
+  }
+
+  updateIndexesLookup(fromLayerIndex: number) {
+    this.lookup.forEach((layerIndex, layerName) => {
+      if (layerIndex > fromLayerIndex) {
+        this.lookup.set(layerName, --layerIndex);
+      }
+    });
   }
 
   changeOrder(
@@ -101,12 +111,28 @@ class LayersController {
     this.active = name;
   }
 
+  setVisible(name: string, visible: boolean) {
+    const layer = this.getByName(name);
+
+    if (layer) {
+      layer.visible = visible;
+    }
+  }
+
+  isVisible(layer: Layer) {
+    return layer.visible;
+  }
+
   getActive() {
     return this.getByName(this.active) as Layer;
   }
 
   getParticles() {
     return this.layers.reduce<IMotionParticle[]>((acc, layer) => {
+      if (!this.isVisible(layer)) {
+        return acc;
+      }
+
       acc = [
         ...acc,
         ...layer.particles

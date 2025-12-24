@@ -87,6 +87,7 @@ declare class PaxelRenderer {
   removeLayer(name: string): number;
   getActiveLayer(): string;
   setActiveLayer(name: string): void;
+  setLayerVisibility(name: string, visible: boolean): void;
   getLayers(): string[];
   changeLayerOrder(name: string, index: number): void;
   clearLayer(layer: string): void;

@@ -288,6 +288,11 @@ class PaxelRenderer {
     }
   }
 
+  setLayerVisibility(name: string, visible: boolean) {
+    this.layersController.setVisible(name, visible);
+    this.draw();
+  }
+
   getLayers() {
     return this.layersController.getNames();
   }

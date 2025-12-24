@@ -169,6 +169,13 @@ paxelRenderer.clearLayer(clearLayerName);
 paxelRenderer.clearAllLayers();
 ```
 
+The visibiltiy of layers could be managed using **setLayerVisibility**.
+
+```typescript
+const notVisible = "not-visible";
+paxelRenderer.setLayerVisibility(notVisible, false);
+```
+
 ### 👾 Physics
 One of the coolest things you can do is to make static objects
 start moving, like a magician, or nowadays like animators.
