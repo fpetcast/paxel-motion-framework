@@ -4,6 +4,9 @@
   "type": "module",
   "main": "./build/index.js",
   "types": "./build/index.d.ts",
+  "engines": {
+    "node": ">=22.21.1 <=23.11.1"
+  },
   "exports": {
     ".": {
       "types": "./build/index.d.ts",
