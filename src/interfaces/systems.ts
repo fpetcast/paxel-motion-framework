@@ -7,6 +7,18 @@ export interface Collider {
   position: MotionVector2
 }
 
+export interface IForce {
+  name: string,
+  intensity: MotionVector2,
+}
+
+export interface LayerCollisionOptions {
+  colliders?: string[]; // layers colliders
+  stopOnBounds?: boolean;
+  destroyOnCollision?: boolean;
+  loopOnCollision?: boolean;
+}
+
 export interface ISystem {
   init: () => void
   registry: Map<string, Layer>

@@ -127,15 +127,32 @@ class LayersController {
     return this.getByName(this.active) as Layer;
   }
 
-  getParticles() {
+  getParticles(filterOptions?: {
+    excludeLayers?: string[],
+    includeLayers?: string[],
+  }) {
     return this.layers.reduce<IMotionParticle[]>((acc, layer) => {
-      if (!this.isVisible(layer)) {
+      const name = layer.name;
+      const notVisible = !this.isVisible(layer);
+
+      let include = true;
+      let exclude = false;
+
+      if (filterOptions?.excludeLayers) {
+        exclude = filterOptions.excludeLayers.includes(name) ? true : false;
+      }
+
+      if (filterOptions?.includeLayers) {
+        include = filterOptions.includeLayers.includes(name) ? true : false;
+      }
+
+      if (notVisible || !include || exclude) {
         return acc;
       }
 
       acc = [
         ...acc,
-        ...layer.particles
+        ...layer.particles.filter((particle) => particle.visible)
       ]
       return acc;
     }, [])

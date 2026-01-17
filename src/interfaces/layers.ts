@@ -6,3 +6,9 @@ export interface Layer {
   lookup: Map<string, number>;
   visible: boolean;
 }
+
+export interface AddLayerConfig {
+  force?: boolean,
+  loop?: boolean,
+  collision?: boolean,
+}

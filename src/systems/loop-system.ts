@@ -43,10 +43,9 @@ class LoopSystem extends SystemAbstract {
     particles.forEach((particle) => {
       particle.restoreOriginalPosition();
       particle.setFreeze(false);
+      particle.setVisible(true);
     });
   }
-
-
 
   private constructor() {
     super();
