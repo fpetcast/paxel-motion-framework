@@ -687,7 +687,7 @@ var WebGlCanvasApi = class {
 		this.type = "webgl";
 		this._inited = false;
 		this.canExport = false;
-		this.backgroundColor = "#ffffff";
+		this.backgroundColor = "";
 		this.canExport = this.options.canExport;
 		this.initWebGlContext();
 		const { fragment, vertex } = shaders();
@@ -702,8 +702,10 @@ var WebGlCanvasApi = class {
 	draw(gridOptions, cells) {
 		const gl = this.gl;
 		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-		const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
-		gl.clearColor(r, g, b, a);
+		if (this.backgroundColor) {
+			const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
+			gl.clearColor(r, g, b, a);
+		}
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		const posData = new Float32Array(cells.length * 2);
 		const colData = new Float32Array(cells.length * 16);
@@ -741,7 +743,7 @@ var WebGlCanvasApi = class {
 			preserveDrawingBuffer: this.canExport
 		});
 		if (!this.gl) console.error("Cannot initialize webgl context");
-		this.gl.clearColor(0, 0, 0, 1);
+		this.gl.clearColor(0, 0, 0, 0);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 		this.resize();
 	}
