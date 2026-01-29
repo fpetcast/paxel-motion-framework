@@ -1,6 +1,6 @@
 import { GraphicsApi, GraphicsApiOptions, GraphicsApiType } from "../../interfaces/graphics-api";
 import { GridOptions } from "../../interfaces/grid";
-import { PaxelParticle } from "../../particle";
+import { PaxelParticle } from "../../entities/particle";
 import { shaders } from "../../shaders/instanced-pixels";
 import { createGraphicProgram, createOrthoMatrix, parseColorRGBA, resizeCanvasToDisplaySize } from "../../utils/webgl";
 

@@ -1,5 +1,5 @@
 
-import { Layer } from "../interfaces/layers";
+import { ILayerInstance } from "../entities/layer";
 import { SystemAbstract } from "./system.abstract";
 
 class LoopSystem extends SystemAbstract {
@@ -38,7 +38,7 @@ class LoopSystem extends SystemAbstract {
     this.loopAfter = after;
   }
 
-  private loop(layer: Layer) {
+  private loop(layer: ILayerInstance) {
     const particles = layer.particles;
     particles.forEach((particle) => {
       particle.restoreOriginalPosition();

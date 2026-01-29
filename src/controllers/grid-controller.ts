@@ -1,13 +1,13 @@
 import { GridOptions } from "../interfaces/grid";
-import { Layer } from "../interfaces/layers";
-import { PaxelParticle } from "../particle";
+import { ILayerInstance, Layer } from "../entities/layer";
+import { PaxelParticle } from "../entities/particle";
 
 class GridController {
   private width: number;
   private height: number;
   private cellSize: number;
 
-  private drawLayer: Layer;
+  private drawLayer: ILayerInstance;
 
   public get motionParticles() {
     return this.drawLayer.particles;

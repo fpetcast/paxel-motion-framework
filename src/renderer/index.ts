@@ -9,7 +9,7 @@ import { GraphicsApi, GraphicsApiType } from "../interfaces/graphics-api";
 import { WebGlCanvasApi } from "./graphics-api/webgl-canvas";
 import { GridOptions } from "../interfaces/grid";
 import { LayerCollisionOptions } from "../interfaces/systems";
-import { AddLayerConfig } from "../interfaces/layers";
+import { IAddLayerConfig } from "../interfaces/layers";
 
 class PaxelRenderer {
   private inited: boolean = false;
@@ -64,9 +64,7 @@ class PaxelRenderer {
         rows: 32,
         columns: 32,
       },
-      layers: {
-        default: "layer-1"
-      },
+      defaultLayer: "layer-1",
       init: true,
       canExport: true,
     }
@@ -99,7 +97,7 @@ class PaxelRenderer {
       const gridOptions: GridOptions = this.getGridOptions();
       this.gridController = new GridController(gridOptions);
 
-      const defaultLayer = this.config.layers?.default ?? "layer-1";
+      const defaultLayer = this.config.defaultLayer;
       this.addLayer(defaultLayer);
 
       if (this.config?.defaultColor) {
@@ -302,18 +300,23 @@ class PaxelRenderer {
 
 
   //#region LAYERS
-  addLayer(name?: string, addLayerConfig: AddLayerConfig = {
+  addLayer(name: string, addLayerConfig: IAddLayerConfig = {
     force: true,
     loop: true,
     collision: true,
   }) {
-    let layerName = name ?? ""
-
-    if (!layerName) {
-      layerName = `layer-${this.layersController.getAll().length + 1}`;
+    if (!name) {
+      console.warn("Cannot add layer with invalid name: ", name);
+      return;
     }
 
-    this.layersController.create(layerName);
+    const existingLayer = this.layersController.getByName(name);
+    if (!!existingLayer) {
+      console.warn("Cannot add layer with name of existing layer: ", name);
+      return;
+    }
+
+    const layer = this.layersController.create(name);
 
     if (this.gridController.getLayer() === undefined) {
       const layer = this.layersController.getByIndex(0);
@@ -323,19 +326,21 @@ class PaxelRenderer {
     const { force, loop, collision } = addLayerConfig;
 
     if (force !== undefined) {
-      this.applyForce(layerName, force);
+      this.applyForce(layer.name, force);
     }
 
     if (loop !== undefined) {
-      this.applyLoop(layerName, loop);
+      this.applyLoop(layer.name, loop);
     }
 
     if (collision !== undefined) {
-      this.applyCollision(layerName, collision);
+      this.applyCollision(layer.name, collision);
     }
+
+    return name;
   }
 
-  removeLayer(name: string) {
+  removeLayerByName(name: string) {
     const removed = this.layersController.drop(name);
 
     if (removed >= 0) {
@@ -346,7 +351,8 @@ class PaxelRenderer {
   }
 
   getActiveLayer() {
-    return this.gridController.getLayer()?.name;
+    const activeLayer = this.gridController.getLayer();
+    return activeLayer.name;
   }
 
   setActiveLayer(name: string) {
@@ -371,15 +377,15 @@ class PaxelRenderer {
   }
 
   getLayers() {
-    return this.layersController.getNames();
+    return this.layersController.list();
   }
 
   changeLayerOrder(name: string, index: number) {
     this.layersController.changeOrder(name, index);
   }
 
-  clearLayer(layer: string) {
-    this.layersController.clear(layer);
+  clearLayer(name: string) {
+    this.layersController.clear(name);
     this.draw();
   }
 
@@ -497,7 +503,7 @@ class PaxelRenderer {
               );
 
               if (checkBoundsCollision) {
-                particle.setFreeze(true);
+                this.collisionSystem.resolveCollisionResponse(particle, collisionOptions);
                 continue;
               }
             }

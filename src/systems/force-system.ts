@@ -1,13 +1,13 @@
 
-import { Layer } from "../interfaces/layers";
+import { ILayerInstance } from "../entities/layer";
 import { MotionVector2 } from "../interfaces/particle";
 import { IForce } from "../interfaces/systems";
-import { PaxelParticle } from "../particle";
+import { PaxelParticle } from "../entities/particle";
 import { SystemAbstract } from "./system.abstract";
 
 class ForceSystem extends SystemAbstract {
   private forces: IForce[] = [];
-  private forcesOnLayers: Map<Layer, IForce[]> = new Map();
+  private forcesOnLayers: Map<ILayerInstance, IForce[]> = new Map();
 
   init() { }
 
@@ -17,7 +17,7 @@ class ForceSystem extends SystemAbstract {
     this.forces = [];
   }
 
-  addForceToLayer(layer: Layer, forceName: string) {
+  addForceToLayer(layer: ILayerInstance, forceName: string) {
     const force = this.getForceByName(forceName);
 
     if (force) {
@@ -26,7 +26,7 @@ class ForceSystem extends SystemAbstract {
     }
   }
 
-  removeForceFromLayer(layer: Layer, forceName: string) {
+  removeForceFromLayer(layer: ILayerInstance, forceName: string) {
     const layerForces = this.getForcesOnLayer(layer);
     const forceIndex = layerForces.findIndex((f) => f.name === forceName);
 
@@ -36,11 +36,11 @@ class ForceSystem extends SystemAbstract {
     }
   }
 
-  getForcesOnLayer(layer: Layer) {
+  getForcesOnLayer(layer: ILayerInstance) {
     return this.forcesOnLayers.get(layer) || [];
   }
 
-  getLayerForcesResult(layer: Layer): MotionVector2 {
+  getLayerForcesResult(layer: ILayerInstance): MotionVector2 {
     const forces = this.getForcesOnLayer(layer);
 
     const zeroForce = {

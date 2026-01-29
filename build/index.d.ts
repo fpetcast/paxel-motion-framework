@@ -11,9 +11,7 @@ interface PaxelRendererConfig {
     width: number;
     height: number;
   };
-  layers?: {
-    default?: string;
-  };
+  defaultLayer: string;
   defaultColor?: string;
 }
 declare const MOTION_RENDERER_MODES: readonly ["static", "motion"];
@@ -26,7 +24,7 @@ interface MotionVector2 {
 }
 //#endregion
 //#region src/interfaces/layers.d.ts
-interface AddLayerConfig {
+interface IAddLayerConfig {
   force?: boolean;
   loop?: boolean;
   collision?: boolean;
@@ -101,15 +99,15 @@ declare class PaxelRenderer {
   setLoopDuration(loopTime: number): void;
   applyLoop(layerName: string, apply?: boolean): void;
   applyCollision(layerName: string, apply?: boolean): void;
-  addLayer(name?: string, addLayerConfig?: AddLayerConfig): void;
-  removeLayer(name: string): number;
+  addLayer(name: string, addLayerConfig?: IAddLayerConfig): string | undefined;
+  removeLayerByName(name: string): number;
   getActiveLayer(): string;
   setActiveLayer(name: string): void;
   setLayerVisibility(name: string, visible: boolean): void;
   setLayerCollision(name: string, collisionOptions: LayerCollisionOptions): void;
   getLayers(): string[];
   changeLayerOrder(name: string, index: number): void;
-  clearLayer(layer: string): void;
+  clearLayer(name: string): void;
   clearAllLayers(): void;
   setFPS(fps: number): void;
   start(): void;

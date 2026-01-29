@@ -1,5 +1,5 @@
-import { MotionVector2 } from "../interfaces/particle";
-import { parseColorRGBA } from "../utils/webgl";
+import { MotionVector2 } from "../../interfaces/particle";
+import { parseColorRGBA } from "../../utils/webgl";
 
 class PaxelParticle {
   private _id: string;

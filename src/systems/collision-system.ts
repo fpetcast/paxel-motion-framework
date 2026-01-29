@@ -1,29 +1,29 @@
 
 import { SystemAbstract } from "./system.abstract";
-import { Collider, LayerCollisionOptions } from "../interfaces/systems";
-import { Layer } from "../interfaces/layers";
+import { Collider, CollisionResponse, LayerCollisionOptions } from "../interfaces/systems";
 import { MotionVector2 } from "../interfaces/particle";
-import { PaxelParticle } from "../particle";
+import { PaxelParticle } from "../entities/particle";
+import { ILayerInstance } from "../entities/layer";
 
 
 class CollisionSystem extends SystemAbstract {
-  private collisionLayers: Map<Layer, LayerCollisionOptions> = new Map();
+  private collisionLayers: Map<ILayerInstance, LayerCollisionOptions> = new Map();
 
   init() { }
 
   update(time: number) { };
 
-  getLayerCollisionOptions(layer: Layer) {
+  getLayerCollisionOptions(layer: ILayerInstance) {
     return this.collisionLayers.get(layer);
   }
 
-  getLayerColliders(layer: Layer) {
+  getLayerColliders(layer: ILayerInstance) {
     const layerCollisionOptions = this.collisionLayers.get(layer);
 
     return layerCollisionOptions?.colliders || [];
   }
 
-  setLayerCollisionOptions(layer: Layer, collisionOptions: LayerCollisionOptions) {
+  setLayerCollisionOptions(layer: ILayerInstance, collisionOptions: LayerCollisionOptions) {
     const layerCollisionOptions = this.collisionLayers.get(layer);
 
     if (layerCollisionOptions) {
@@ -63,7 +63,7 @@ class CollisionSystem extends SystemAbstract {
   }
 
   checkParticleCollision(
-    layer: Layer,
+    layer: ILayerInstance,
     colliderA: PaxelParticle,
     colliderAPosition: MotionVector2,
     colliderB: PaxelParticle
@@ -75,23 +75,42 @@ class CollisionSystem extends SystemAbstract {
       { position: colliderB.position, size: colliderB.size }
     );
 
-    if (isCollision) {
-      if (layerCollisionOptions?.destroyOnCollision) {
-        colliderA.setVisible(false);
-        colliderA.setFreeze(true);
-      } else if (layerCollisionOptions?.loopOnCollision) {
-        colliderA.restoreOriginalPosition();
-      } else {
-        colliderA.setFreeze(true);
-      }
-
+    if (isCollision && layerCollisionOptions) {
+      this.resolveCollisionResponse(colliderA, layerCollisionOptions);
       return true;
     }
 
     return false;
   }
 
-  checkBoundsCollision(canvas: HTMLCanvasElement, layer: Layer, particle: PaxelParticle, position: MotionVector2) {
+  resolveCollisionResponse(particle: PaxelParticle, layerCollisionOptions: LayerCollisionOptions) {
+    if (layerCollisionOptions?.destroyOnCollision) {
+      this.resolveCollisionByType(particle, "destroy");
+    } else if (layerCollisionOptions?.loopOnCollision) {
+      this.resolveCollisionByType(particle, "loop");
+    } else {
+      this.resolveCollisionByType(particle, "freeze");
+    }
+  }
+
+  resolveCollisionByType(particle: PaxelParticle, collisionResponse: CollisionResponse) {
+    switch (collisionResponse) {
+      case "destroy":
+        particle.setVisible(false);
+        particle.setFreeze(true);
+        break;
+      case "loop":
+        particle.restoreOriginalPosition();
+        break;
+      case "freeze":
+        particle.setFreeze(true);
+        break;
+      default:
+        break;
+    }
+  }
+
+  checkBoundsCollision(canvas: HTMLCanvasElement, layer: ILayerInstance, particle: PaxelParticle, position: MotionVector2) {
     const layerCollisionOptions = this.getLayerCollisionOptions(layer);
 
     const isOutOfBounds = this.isOutOfBounds({

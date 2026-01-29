@@ -12,9 +12,7 @@ export interface PaxelRendererConfig {
     width: number,
     height: number
   },
-  layers?: {
-    default?: string
-  },
+  defaultLayer: string;
   defaultColor?: string;
 }
 
