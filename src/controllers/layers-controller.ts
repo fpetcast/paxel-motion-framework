@@ -1,23 +1,34 @@
-import { Layer } from "../interfaces/layers";
-import { IMotionParticle } from "../particle";
+import { Layer } from "../entities/layer";
+import { IMotionParticle } from "../entities/particle";
 
 class LayersController {
   private layers: Layer[] = [];
   private lookup: Map<string, number> = new Map();
   private active: string = "";
 
+  list() {
+    return this.layers.map((layer) => layer.name);
+  }
+
+  getAll() {
+    return this.layers;
+  }
+
   create(name: string) {
     if (this.layers.length === 0) {
       this.setActive(name);
     }
 
-    this.layers.push({
+    const layer = new Layer({
       name,
       particles: [],
       visible: true,
-      lookup: new Map()
     });
+
+    this.layers.push(layer);
     this.lookup.set(name, this.layers.length - 1);
+
+    return layer;
   }
 
   drop(name: string) {
@@ -70,27 +81,27 @@ class LayersController {
     return this.layers[index];
   }
 
+  getById(_id: string) {
+    const index = this.layers.findIndex((l) => l._id === _id);
+
+    if (index >= 0) {
+      return this.layers[index];
+    }
+  }
+
   getByName(name: string) {
     const layerIndex = this.lookup.get(name) ?? -1;
 
     if (layerIndex >= 0) {
       return this.layers[layerIndex];
     } else {
-      console.error('Cannot find layer: ', name);
+      console.warn('Cannot find layer: ', name);
       return undefined
     }
   }
 
-  getNames() {
-    return this.layers.map((layer) => layer.name);
-  }
-
-  getAll() {
-    return this.layers;
-  }
-
   clearAll() {
-    this.getAll().forEach((layer) => {
+    this.layers.forEach((layer) => {
       layer.lookup.clear();
       layer.particles = [];
     })
@@ -119,26 +130,43 @@ class LayersController {
     }
   }
 
-  isVisible(layer: Layer) {
-    return layer.visible;
-  }
-
   getActive() {
     return this.getByName(this.active) as Layer;
   }
 
-  getParticles() {
+  getParticles(filterOptions?: {
+    excludeLayers?: string[],
+    includeLayers?: string[],
+  }) {
     return this.layers.reduce<IMotionParticle[]>((acc, layer) => {
-      if (!this.isVisible(layer)) {
+      const name = layer.name;
+      const notVisible = !this.isVisible(layer);
+
+      let include = true;
+      let exclude = false;
+
+      if (filterOptions?.excludeLayers) {
+        exclude = filterOptions.excludeLayers.includes(name) ? true : false;
+      }
+
+      if (filterOptions?.includeLayers) {
+        include = filterOptions.includeLayers.includes(name) ? true : false;
+      }
+
+      if (notVisible || !include || exclude) {
         return acc;
       }
 
       acc = [
         ...acc,
-        ...layer.particles
+        ...layer.particles.filter((particle) => particle.visible)
       ]
       return acc;
     }, [])
+  }
+
+  private isVisible(layer: Layer) {
+    return layer.visible;
   }
 }
 

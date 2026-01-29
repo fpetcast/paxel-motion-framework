@@ -1,6 +1,6 @@
 import { GraphicsApi, GraphicsApiOptions, GraphicsApiType } from "../../interfaces/graphics-api";
 import { GridOptions } from "../../interfaces/grid";
-import { PaxelParticle } from "../../particle";
+import { PaxelParticle } from "../../entities/particle";
 import { shaders } from "../../shaders/instanced-pixels";
 import { createGraphicProgram, createOrthoMatrix, parseColorRGBA, resizeCanvasToDisplaySize } from "../../utils/webgl";
 
@@ -22,7 +22,7 @@ class WebGlCanvasApi implements GraphicsApi<"webgl"> {
   }
 
   public canExport: boolean = false;
-  public backgroundColor: string = "#ffffff";
+  public backgroundColor: string = "";
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -53,8 +53,10 @@ class WebGlCanvasApi implements GraphicsApi<"webgl"> {
 
     // Setup viewport e clear
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
-    gl.clearColor(r, g, b, a);
+    if (this.backgroundColor) {
+      const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
+      gl.clearColor(r, g, b, a);
+    }
     gl.clear(gl.COLOR_BUFFER_BIT);
 
 
@@ -107,14 +109,17 @@ class WebGlCanvasApi implements GraphicsApi<"webgl"> {
 
   private initWebGlContext() {
     this.gl = this.canvas.getContext("webgl2",
-      { alpha: true, preserveDrawingBuffer: this.canExport }
+      {
+        alpha: true,
+        preserveDrawingBuffer: this.canExport,
+      }
     ) as WebGL2RenderingContext;
 
     if (!this.gl) {
       console.error('Cannot initialize webgl context');
     }
 
-    this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
     this.resize();

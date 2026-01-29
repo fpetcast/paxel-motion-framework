@@ -1,5 +1,5 @@
-import { MotionVector2 } from "../interfaces/particle";
-import { parseColorRGBA } from "../utils/webgl";
+import { MotionVector2 } from "../../interfaces/particle";
+import { parseColorRGBA } from "../../utils/webgl";
 
 class PaxelParticle {
   private _id: string;
@@ -51,13 +51,13 @@ class PaxelParticle {
       color?: string;
     }
   ) {
-    this._id = Date.now().toString();
+    this._id = this.getUuid();
     this._position = data.position;
     this._originalPosition = data.position;
     this.width = data.width;
     this.height = data.height;
     if (data?.color) {
-      this.color = data.color
+      this.color = data.color;
     }
   }
 
@@ -90,6 +90,10 @@ class PaxelParticle {
 
   setVisible(visible: boolean) {
     this._visible = visible;
+  }
+
+  private getUuid() {
+    return `${Date.now().toString(36) + Math.random().toString(36).slice(2, 7)}`;
   }
 }
 
