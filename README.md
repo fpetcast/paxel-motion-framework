@@ -65,6 +65,7 @@ document.body.appendChild(canvas);
 export const config: PaxelRendererConfig = {
   init: true, // initialize without calling the init method
   canExport: true, // let you export frames
+  defaultLayer: "default" //default layer name
   canvas: {
     width: 640, // will set canvas width
     height: 640, // will set canvas height
@@ -138,7 +139,7 @@ canvas.addEventListener("click", (e) => {
 By default all the pixels will be drawn on the same layer, but
 there is a **stack mechanism** to create overlays and complex backgrounds
 using  **layers**. You can add a layer with a given name using **addLayer**
-and use it as the new active layer with **setActiveLayer**
+and use it as the new active layer with **setActiveLayer**.
 
 ```typescript
 const newLayerName = "above-default-layer";
@@ -146,14 +147,14 @@ paxelRenderer.addLayer(newLayerName);
 paxelRenderer.setActiveLayer(newLayerName);
 ```
 
-This way you can set the active layer where the pixels wil be put from
-now on. There are other common features relative to these structure like
-**getLayers** to get the names of all registered layers or **removeLayer**
+The active layer will be used by default when calling the drawing pixels functions **putPixel** and **drawAt**. 
+There are other common features relative to layers like
+**getLayers** to get the names of all registered layers or **removeLayerByName**
 to remove them by name
 
 ```typescript
 const removeLayerName = "remove-me";
-paxelRenderer.removeLayer(removeLayerName);
+paxelRenderer.removeLayerByName(removeLayerName);
 ```
 
 Another important feature of layers is that they can be cleared from
@@ -184,9 +185,9 @@ The frameworks supports an **animation loop** that can be controlled
 as you like using three methods.
 
 ```typescript
-paxelRenderer.play(); // start physics simulation
+paxelRenderer.start(); // start physics simulation
 paxelRenderer.stop(); // stop physics simulation
-paxelRenderer.restart(); // restart physics simulation from original positions
+paxelRenderer.reset(); // restart physics simulation from original positions
 ```
 
 But playing a physics simulation will involve to register **forces**
@@ -208,7 +209,7 @@ paxelRenderer.createForce(force.name, force);
 const movingLayer = "moving-layer"
 paxelRenderer.applyForce(movingLayer);
 
-paxelRenderer.play(); // to see the force in action
+paxelRenderer.start(); // to see the force in action
 ```
 
 You can also define the target **FPS** (but really always depends on the web browser),
@@ -223,10 +224,10 @@ paxelRenderer.setFPS(fps);
 
 // define the loop time in seconds
 let seconds = 2;
-paxelRenderer.setLoopTime(seconds);
+paxelRenderer.setLoopDuration(seconds);
 
 const loopedLayer = "looped-layer"
 paxelRenderer.applyLoop(loopedLayer);
 
-paxelRenderer.play(); // to see the layer looping cycle
+paxelRenderer.start(); // to see the layer looping cycle
 ```
