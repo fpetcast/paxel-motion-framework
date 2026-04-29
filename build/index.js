@@ -111,7 +111,7 @@ const createGraphicProgram = (gl, params) => {
 };
 
 //#endregion
-//#region src/particle/index.ts
+//#region src/entities/particle/index.ts
 var PaxelParticle = class {
 	get id() {
 		return this._id;
@@ -142,7 +142,7 @@ var PaxelParticle = class {
 			x: 0,
 			y: 0
 		};
-		this._id = Date.now().toString();
+		this._id = this.getUuid();
 		this._position = data.position;
 		this._originalPosition = data.position;
 		this.width = data.width;
@@ -173,6 +173,9 @@ var PaxelParticle = class {
 	}
 	setVisible(visible) {
 		this._visible = visible;
+	}
+	getUuid() {
+		return `${Date.now().toString(36) + Math.random().toString(36).slice(2, 7)}`;
 	}
 };
 
@@ -342,6 +345,7 @@ var LoopSystem = class LoopSystem extends SystemAbstract {
 		layer.particles.forEach((particle) => {
 			particle.restoreOriginalPosition();
 			particle.setFreeze(false);
+			particle.setVisible(true);
 		});
 	}
 	constructor() {
@@ -360,14 +364,104 @@ var LoopSystem = class LoopSystem extends SystemAbstract {
 var CollisionSystem = class CollisionSystem extends SystemAbstract {
 	init() {}
 	update(time) {}
+	getLayerCollisionOptions(layer) {
+		return this.collisionLayers.get(layer);
+	}
+	getLayerColliders(layer) {
+		return this.collisionLayers.get(layer)?.colliders || [];
+	}
+	setLayerCollisionOptions(layer, collisionOptions) {
+		const layerCollisionOptions = this.collisionLayers.get(layer);
+		if (layerCollisionOptions) this.collisionLayers.set(layer, {
+			...layerCollisionOptions,
+			...collisionOptions
+		});
+		else this.collisionLayers.set(layer, collisionOptions);
+	}
 	isColliding(colliderA, colliderB) {
 		return colliderA.position.x < colliderB.position.x + colliderB.size.x && colliderA.position.x + colliderA.size.x > colliderB.position.x && colliderA.position.y < colliderB.position.y + colliderB.size.y && colliderA.position.y + colliderA.size.y > colliderB.position.y;
 	}
 	isOutOfBounds(collider, canvas) {
-		return collider.position.x < 0 || collider.position.x >= canvas.width || collider.position.y < 0 || collider.position.y >= canvas.height;
+		const outLeft = collider.position.x < 0;
+		const outRight = collider.position.x >= canvas.width;
+		const outTop = collider.position.y < 0;
+		const outBottom = collider.position.y >= canvas.height;
+		return {
+			out: outLeft || outRight || outTop || outBottom,
+			outLeft,
+			outBottom,
+			outRight,
+			outTop
+		};
+	}
+	checkParticleCollision(layer, colliderA, colliderAPosition, colliderB) {
+		const layerCollisionOptions = this.getLayerCollisionOptions(layer);
+		if (this.isColliding({
+			position: colliderAPosition,
+			size: colliderA.size
+		}, {
+			position: colliderB.position,
+			size: colliderB.size
+		}) && layerCollisionOptions) {
+			this.resolveCollisionResponse(colliderA, layerCollisionOptions);
+			return true;
+		}
+		return false;
+	}
+	resolveCollisionResponse(particle, layerCollisionOptions) {
+		if (layerCollisionOptions?.destroyOnCollision) this.resolveCollisionByType(particle, "destroy");
+		else if (layerCollisionOptions?.loopOnCollision) this.resolveCollisionByType(particle, "loop");
+		else this.resolveCollisionByType(particle, "freeze");
+	}
+	resolveCollisionByType(particle, collisionResponse) {
+		switch (collisionResponse) {
+			case "destroy":
+				particle.setVisible(false);
+				particle.setFreeze(true);
+				break;
+			case "loop":
+				particle.restoreOriginalPosition();
+				break;
+			case "freeze":
+				particle.setFreeze(true);
+				break;
+			default: break;
+		}
+	}
+	checkBoundsCollision(canvas, layer, particle, position) {
+		const layerCollisionOptions = this.getLayerCollisionOptions(layer);
+		const { outLeft, outRight, outBottom, outTop, out } = this.isOutOfBounds({
+			position,
+			size: particle.size
+		}, canvas);
+		if (out) {
+			if (layerCollisionOptions?.destroyOnCollision) {
+				particle.setVisible(false);
+				particle.setFreeze(true);
+			} else if (layerCollisionOptions?.loopOnCollision) particle.restoreOriginalPosition();
+			else if (layerCollisionOptions?.stopOnBounds) {
+				const canvasMeasures = this.getCanvasMeasures(canvas);
+				if (outBottom) particle.setPosition(position.x, canvasMeasures.bottom - particle.size.x);
+				else if (outTop) particle.setPosition(position.x, canvasMeasures.top);
+				else if (outLeft) particle.setPosition(canvasMeasures.left, position.y);
+				else if (outRight) particle.setPosition(canvasMeasures.right - particle.size.x, position.y);
+				particle.setFreeze(true);
+			}
+			return true;
+		}
+		return false;
+	}
+	getCanvasMeasures(canvas) {
+		return {
+			top: 0,
+			left: 0,
+			right: canvas.width,
+			bottom: canvas.height
+		};
 	}
 	constructor() {
 		super();
+		this.collisionLayers = /* @__PURE__ */ new Map();
 	}
 	static get instance() {
 		if (!CollisionSystem._instance) CollisionSystem._instance = new CollisionSystem();
@@ -381,22 +475,63 @@ var ForceSystem = class ForceSystem extends SystemAbstract {
 	init() {}
 	update(time) {}
 	clear() {
-		this._forces.clear();
+		this.forces = [];
 	}
-	upsertForce(name, force) {
-		this._forces.set(name, force);
+	addForceToLayer(layer, forceName) {
+		const force = this.getForceByName(forceName);
+		if (force) {
+			const layerForces = this.getForcesOnLayer(layer);
+			this.forcesOnLayers.set(layer, Array.from(new Set([...layerForces, force])));
+		}
+	}
+	removeForceFromLayer(layer, forceName) {
+		const layerForces = this.getForcesOnLayer(layer);
+		const forceIndex = layerForces.findIndex((f) => f.name === forceName);
+		if (forceIndex >= 0) {
+			layerForces.splice(forceIndex, 1);
+			this.forcesOnLayers.set(layer, layerForces);
+		}
+	}
+	getForcesOnLayer(layer) {
+		return this.forcesOnLayers.get(layer) || [];
+	}
+	getLayerForcesResult(layer) {
+		const forces = this.getForcesOnLayer(layer);
+		const zeroForce = {
+			x: 0,
+			y: 0
+		};
+		return forces?.reduce((result, force) => {
+			result.x += force.intensity.x;
+			result.y += force.intensity.y;
+			return result;
+		}, zeroForce) ?? zeroForce;
+	}
+	getForceByName(forceName) {
+		const searched = this.forces.find((f) => f.name === forceName);
+		if (!searched) console.warn("Cannot find force with name:", searched);
+		return searched;
+	}
+	upsertForce(name, intensity) {
+		this.forces.push({
+			name,
+			intensity
+		});
 	}
 	removeForce(name) {
-		return this._forces.delete(name);
+		const removeIndex = this.forces.findIndex((f) => f.name === name);
+		if (removeIndex >= 0) {
+			this.forces.splice(removeIndex, 1);
+			return removeIndex;
+		}
+		return -1;
 	}
-	applyForces(deltaTime, particle) {
-		let appliedForcePos = { ...particle.position };
-		this._forces.forEach((force) => {
-			const computedForce = this.computeForce(particle, force);
-			appliedForcePos.x += computedForce.x;
-			appliedForcePos.y += computedForce.y;
-		});
-		return appliedForcePos;
+	applyForceToParticle(forceIntensity, particle) {
+		const appliedForce = this.computeForce(particle, forceIntensity);
+		return {
+			x: particle.position.x + appliedForce.x,
+			y: particle.position.y + appliedForce.y
+		};
 	}
 	/**
 	* Convert force from grid unit to pixels
@@ -412,11 +547,29 @@ var ForceSystem = class ForceSystem extends SystemAbstract {
 	}
 	constructor() {
 		super();
-		this._forces = /* @__PURE__ */ new Map();
+		this.forces = [];
+		this.forcesOnLayers = /* @__PURE__ */ new Map();
 	}
 	static get instance() {
 		if (!ForceSystem._instance) ForceSystem._instance = new ForceSystem();
 		return ForceSystem._instance;
+	}
+};
+
+//#endregion
+//#region src/entities/layer/index.ts
+var Layer = class {
+	constructor(params) {
+		this.particles = [];
+		this.lookup = /* @__PURE__ */ new Map();
+		this.visible = true;
+		this._id = this.getUuid();
+		this.name = params.name;
+		this.visible = params.visible;
+		this.particles = params.particles;
+	}
+	getUuid() {
+		return `${Date.now().toString(36) + Math.random().toString(36).slice(2, 7)}`;
 	}
 };
 
@@ -428,15 +581,22 @@ var LayersController = class {
 		this.lookup = /* @__PURE__ */ new Map();
 		this.active = "";
 	}
+	list() {
+		return this.layers.map((layer) => layer.name);
+	}
+	getAll() {
+		return this.layers;
+	}
 	create(name) {
 		if (this.layers.length === 0) this.setActive(name);
-		this.layers.push({
+		const layer = new Layer({
 			name,
 			particles: [],
-			visible: true,
-			lookup: /* @__PURE__ */ new Map()
+			visible: true
 		});
+		this.layers.push(layer);
 		this.lookup.set(name, this.layers.length - 1);
+		return layer;
 	}
 	drop(name) {
 		const dropLayerIndex = this.lookup.get(name) ?? -1;
@@ -468,22 +628,20 @@ var LayersController = class {
 	getByIndex(index) {
 		return this.layers[index];
 	}
+	getById(_id) {
+		const index = this.layers.findIndex((l) => l._id === _id);
+		if (index >= 0) return this.layers[index];
+	}
 	getByName(name) {
 		const layerIndex = this.lookup.get(name) ?? -1;
 		if (layerIndex >= 0) return this.layers[layerIndex];
 		else {
-			console.error("Cannot find layer: ", name);
+			console.warn("Cannot find layer: ", name);
 			return;
 		}
 	}
-	getNames() {
-		return this.layers.map((layer) => layer.name);
-	}
-	getAll() {
-		return this.layers;
-	}
 	clearAll() {
-		this.getAll().forEach((layer) => {
+		this.layers.forEach((layer) => {
 			layer.lookup.clear();
 			layer.particles = [];
 		});
@@ -502,18 +660,24 @@ var LayersController = class {
 		const layer = this.getByName(name);
 		if (layer) layer.visible = visible;
 	}
-	isVisible(layer) {
-		return layer.visible;
-	}
 	getActive() {
 		return this.getByName(this.active);
 	}
-	getParticles() {
+	getParticles(filterOptions) {
 		return this.layers.reduce((acc, layer) => {
-			if (!this.isVisible(layer)) return acc;
-			acc = [...acc, ...layer.particles];
+			const name = layer.name;
+			const notVisible = !this.isVisible(layer);
+			let include = true;
+			let exclude = false;
+			if (filterOptions?.excludeLayers) exclude = filterOptions.excludeLayers.includes(name) ? true : false;
+			if (filterOptions?.includeLayers) include = filterOptions.includeLayers.includes(name) ? true : false;
+			if (notVisible || !include || exclude) return acc;
+			acc = [...acc, ...layer.particles.filter((particle) => particle.visible)];
 			return acc;
 		}, []);
+	}
+	isVisible(layer) {
+		return layer.visible;
 	}
 };
 
@@ -561,7 +725,7 @@ var WebGlCanvasApi = class {
 		this.type = "webgl";
 		this._inited = false;
 		this.canExport = false;
-		this.backgroundColor = "#ffffff";
+		this.backgroundColor = "";
 		this.canExport = this.options.canExport;
 		this.initWebGlContext();
 		const { fragment, vertex } = shaders();
@@ -576,8 +740,10 @@ var WebGlCanvasApi = class {
 	draw(gridOptions, cells) {
 		const gl = this.gl;
 		gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-		const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
-		gl.clearColor(r, g, b, a);
+		if (this.backgroundColor) {
+			const [r, g, b, a] = parseColorRGBA(this.backgroundColor);
+			gl.clearColor(r, g, b, a);
+		}
 		gl.clear(gl.COLOR_BUFFER_BIT);
 		const posData = new Float32Array(cells.length * 2);
 		const colData = new Float32Array(cells.length * 16);
@@ -615,7 +781,7 @@ var WebGlCanvasApi = class {
 			preserveDrawingBuffer: this.canExport
 		});
 		if (!this.gl) console.error("Cannot initialize webgl context");
-		this.gl.clearColor(0, 0, 0, 1);
+		this.gl.clearColor(0, 0, 0, 0);
 		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 		this.resize();
 	}
@@ -685,7 +851,7 @@ var PaxelRenderer = class {
 			rows: 32,
 			columns: 32
 		},
-		layers: { default: "layer-1" },
+		defaultLayer: "layer-1",
 		init: true,
 		canExport: true
 	}) {
@@ -714,7 +880,7 @@ var PaxelRenderer = class {
 			this.layersController = new LayersController();
 			const gridOptions = this.getGridOptions();
 			this.gridController = new GridController(gridOptions);
-			const defaultLayer = this.config.layers?.default ?? "layer-1";
+			const defaultLayer = this.config.defaultLayer;
 			this.addLayer(defaultLayer);
 			if (this.config?.defaultColor) this.defaultDrawColor = this.config.defaultColor;
 			this.inited = true;
@@ -726,6 +892,7 @@ var PaxelRenderer = class {
 	}
 	setBackgroundColor(color) {
 		this.graphicsApi.backgroundColor = color;
+		this.draw();
 	}
 	setCanvas() {
 		const canvasWidth = this.config.canvas.width;
@@ -753,21 +920,25 @@ var PaxelRenderer = class {
 			this.graphicsApi.canExport = config.canExport;
 		}
 	}
-	drawAt(x, y, color) {
+	drawAt(x, y, color, targetLayer) {
+		if (targetLayer) this.setActiveLayer(targetLayer);
 		const drawColor = color ?? this.defaultDrawColor;
 		this.gridController.setCellAtPosition(x, y, drawColor);
 		this.draw();
 	}
-	removeAt(x, y) {
+	removeAt(x, y, targetLayer) {
+		if (targetLayer) this.setActiveLayer(targetLayer);
 		this.gridController.removeCellAtPosition(x, y);
 		this.draw();
 	}
-	putPixel(row, column, color) {
+	putPixel(row, column, color, targetLayer) {
+		if (targetLayer) this.setActiveLayer(targetLayer);
 		const drawColor = color ?? this.defaultDrawColor;
 		this.gridController.setCellInGrid(row, column, drawColor);
 		this.draw();
 	}
-	removePixel(row, column) {
+	removePixel(row, column, targetLayer) {
+		if (targetLayer) this.setActiveLayer(targetLayer);
 		this.gridController.removeCell(row, column);
 		this.draw();
 	}
@@ -790,12 +961,20 @@ var PaxelRenderer = class {
 		}
 		this.forceSystem.apply(layer, apply);
 	}
+	setForceOnLayer(layerName, forceName) {
+		const layer = this.layersController.getByName(layerName);
+		if (layer) this.forceSystem.addForceToLayer(layer, forceName);
+	}
+	removeForceFromLayer(layerName, forceName) {
+		const layer = this.layersController.getByName(layerName);
+		if (layer) this.forceSystem.removeForceFromLayer(layer, forceName);
+	}
 	/**
-	* Set the loop time before simulation loops in seconds
+	* Set the time duration before simulation loops in seconds
 	* 
 	* @param loopTime seconds before loop
 	*/
-	setLoopTime(loopTime) {
+	setLoopDuration(loopTime) {
 		const loopMs = loopTime * 1e3;
 		this.loopSystem.setLoopAfter(loopMs);
 	}
@@ -807,22 +986,45 @@ var PaxelRenderer = class {
 		}
 		this.loopSystem.apply(layer, apply);
 	}
-	addLayer(name) {
-		let layerName = name ?? "";
-		if (!layerName) layerName = `layer-${this.layersController.getAll().length + 1}`;
-		this.layersController.create(layerName);
-		if (this.gridController.getLayer() === void 0) {
-			const layer = this.layersController.getByIndex(0);
-			this.gridController.setLayer(layer);
+	applyCollision(layerName, apply = true) {
+		const layer = this.layersController.getByName(layerName);
+		if (!layer) {
+			console.error("Cannot apply loop to layer: ", layerName);
+			return;
 		}
+		this.collisionSystem.apply(layer, apply);
 	}
-	removeLayer(name) {
+	addLayer(name, addLayerConfig = {
+		force: true,
+		loop: true,
+		collision: true
+	}) {
+		if (!name) {
+			console.warn("Cannot add layer with invalid name: ", name);
+			return;
+		}
+		if (!!this.layersController.getByName(name)) {
+			console.warn("Cannot add layer with name of existing layer: ", name);
+			return;
+		}
+		const layer = this.layersController.create(name);
+		if (this.gridController.getLayer() === void 0) {
+			const layer$1 = this.layersController.getByIndex(0);
+			this.gridController.setLayer(layer$1);
+		}
+		const { force, loop, collision } = addLayerConfig;
+		if (force !== void 0) this.applyForce(layer.name, force);
+		if (loop !== void 0) this.applyLoop(layer.name, loop);
+		if (collision !== void 0) this.applyCollision(layer.name, collision);
+		return name;
+	}
+	removeLayerByName(name) {
 		const removed = this.layersController.drop(name);
 		if (removed >= 0) this.draw();
 		return removed;
 	}
 	getActiveLayer() {
-		return this.gridController.getLayer()?.name;
+		return this.gridController.getLayer().name;
 	}
 	setActiveLayer(name) {
 		const layer = this.layersController.getByName(name);
@@ -832,14 +1034,18 @@ var PaxelRenderer = class {
 		this.layersController.setVisible(name, visible);
 		this.draw();
 	}
+	setLayerCollision(name, collisionOptions) {
+		const layer = this.layersController.getByName(name);
+		if (layer) this.collisionSystem.setLayerCollisionOptions(layer, collisionOptions);
+	}
 	getLayers() {
-		return this.layersController.getNames();
+		return this.layersController.list();
 	}
 	changeLayerOrder(name, index) {
 		this.layersController.changeOrder(name, index);
 	}
-	clearLayer(layer) {
-		this.layersController.clear(layer);
+	clearLayer(name) {
+		this.layersController.clear(name);
 		this.draw();
 	}
 	clearAllLayers() {
@@ -884,18 +1090,42 @@ var PaxelRenderer = class {
 		this.accumulator += Math.min(deltaTime, 200);
 		if (this.accumulator >= this.frameDuration) {
 			const layers = this.layersController.getAll();
+			this.loopSystem.update(this.accumulator);
 			for (const layer of layers) {
-				if (!this.forceSystem.isRegistered(layer)) continue;
+				if (!layer.visible) continue;
 				const { particles } = layer;
-				this.loopSystem.update(this.accumulator);
-				if (this.loopSystem.checkLoop()) continue;
+				const isForceEnabled = this.forceSystem.isRegistered(layer);
+				const isCollisionEnabled = this.collisionSystem.isRegistered(layer);
 				for (const particle of particles) {
 					if (particle.isFreezed) continue;
-					let updatePos = this.forceSystem.applyForces(deltaTime, particle);
+					let updatePos = { ...particle.position };
+					if (isForceEnabled) {
+						const totalLayerForce = this.forceSystem.getLayerForcesResult(layer);
+						updatePos = this.forceSystem.applyForceToParticle(totalLayerForce, particle);
+					}
+					if (isCollisionEnabled) {
+						const collisionOptions = this.collisionSystem.getLayerCollisionOptions(layer);
+						if (collisionOptions?.stopOnBounds) {
+							if (this.collisionSystem.checkBoundsCollision(this.canvas, layer, particle, updatePos)) {
+								this.collisionSystem.resolveCollisionResponse(particle, collisionOptions);
+								continue;
+							}
+						}
+						let isParticleCollision = false;
+						const collidersLayers = this.collisionSystem.getLayerColliders(layer);
+						const collidersParticles = this.layersController.getParticles({ includeLayers: collidersLayers });
+						for (const colliderParticle of collidersParticles) {
+							if (particle.id === colliderParticle.id) continue;
+							isParticleCollision = this.collisionSystem.checkParticleCollision(layer, particle, updatePos, colliderParticle);
+							if (isParticleCollision) break;
+						}
+						if (isParticleCollision) continue;
+					}
 					particle.setPosition(updatePos.x, updatePos.y);
 				}
 			}
-			this.accumulator -= this.frameDuration;
+			this.loopSystem.checkLoop();
+			this.accumulator = 0;
 		}
 		this.draw();
 		if (this.isRunning) this.loopFrameId = requestAnimationFrame(this.loop.bind(this));

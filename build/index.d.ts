@@ -11,9 +11,7 @@ interface PaxelRendererConfig {
     width: number;
     height: number;
   };
-  layers?: {
-    default?: string;
-  };
+  defaultLayer: string;
   defaultColor?: string;
 }
 declare const MOTION_RENDERER_MODES: readonly ["static", "motion"];
@@ -23,6 +21,21 @@ type PaxelRendererMode = typeof MOTION_RENDERER_MODES[number];
 interface MotionVector2 {
   x: number;
   y: number;
+}
+//#endregion
+//#region src/interfaces/layers.d.ts
+interface IAddLayerConfig {
+  force?: boolean;
+  loop?: boolean;
+  collision?: boolean;
+}
+//#endregion
+//#region src/interfaces/systems.d.ts
+interface LayerCollisionOptions {
+  colliders?: string[];
+  stopOnBounds?: boolean;
+  destroyOnCollision?: boolean;
+  loopOnCollision?: boolean;
 }
 //#endregion
 //#region src/renderer/index.d.ts
@@ -64,10 +77,10 @@ declare class PaxelRenderer {
   setBackgroundColor(color: string): void;
   private setCanvas;
   updateConfig(config: UpdatePaxelRendererConfig): void;
-  drawAt(x: number, y: number, color?: string): void;
-  removeAt(x: number, y: number): void;
-  putPixel(row: number, column: number, color?: string): void;
-  removePixel(row: number, column: number): void;
+  drawAt(x: number, y: number, color?: string, targetLayer?: string): void;
+  removeAt(x: number, y: number, targetLayer?: string): void;
+  putPixel(row: number, column: number, color?: string, targetLayer?: string): void;
+  removePixel(row: number, column: number, targetLayer?: string): void;
   /**
    * Add force to the motion mode simulation
    * @param name force name
@@ -76,21 +89,25 @@ declare class PaxelRenderer {
   createForce(name: string, forceVector: MotionVector2): void;
   removeForce(name: string): void;
   applyForce(layerName: string, apply?: boolean): void;
+  setForceOnLayer(layerName: string, forceName: string): void;
+  removeForceFromLayer(layerName: string, forceName: string): void;
   /**
-   * Set the loop time before simulation loops in seconds
+   * Set the time duration before simulation loops in seconds
    *
    * @param loopTime seconds before loop
    */
-  setLoopTime(loopTime: number): void;
+  setLoopDuration(loopTime: number): void;
   applyLoop(layerName: string, apply?: boolean): void;
-  addLayer(name?: string): void;
-  removeLayer(name: string): number;
+  applyCollision(layerName: string, apply?: boolean): void;
+  addLayer(name: string, addLayerConfig?: IAddLayerConfig): string | undefined;
+  removeLayerByName(name: string): number;
   getActiveLayer(): string;
   setActiveLayer(name: string): void;
   setLayerVisibility(name: string, visible: boolean): void;
+  setLayerCollision(name: string, collisionOptions: LayerCollisionOptions): void;
   getLayers(): string[];
   changeLayerOrder(name: string, index: number): void;
-  clearLayer(layer: string): void;
+  clearLayer(name: string): void;
   clearAllLayers(): void;
   setFPS(fps: number): void;
   start(): void;
